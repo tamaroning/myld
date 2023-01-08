@@ -3,13 +3,14 @@
 #include <fstream>
 #include <iostream>
 #include <vector>
+#include <format>
 
 typedef uint8_t u8;
 
 int main(int argc, char *argv[]) {
     std::cout << "myld version " << MYLD_VERSION << std::endl << std::endl;
 
-    std::string elf_file_name = "tests/simple";
+    std::string elf_file_name = argv[1];
     std::ifstream elf_file(elf_file_name);
 
     if (!elf_file) {
@@ -24,6 +25,10 @@ int main(int argc, char *argv[]) {
     
     std::cout << "file name : " << elf_file_name << std::endl;
     std::cout << "type      : " << elf_header->e_type << std::endl;
+
+    if(elf_header->e_type != ET_REL) {
+        std::cout << std::format("Hello {}!\n", "world");
+    }
 
     return 0;
 }

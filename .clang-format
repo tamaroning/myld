@@ -1,0 +1,6 @@
+BasedOnStyle: LLVM
+IndentWidth: 4
+Language: Cpp
+Standard: Auto
+ColumnLimit: 120
+UseCRLF: false

@@ -9,3 +9,8 @@ cmake --build build
 ```
 ./build/myld
 ```
+
+# Test
+```
+./test.sh simple
+```

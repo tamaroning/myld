@@ -13,9 +13,9 @@ class Section {
 
     void set_name(std::string name) { name = name; }
 
-    std::vector<u8> get_raw() {
-      return raw;
-    }
+    std::vector<u8> get_raw() { return raw; }
+
+    std::string get_name() { return name; }
 
   private:
     std::string name;
@@ -48,7 +48,7 @@ class Elf {
             u64 offset = sheader[i]->sh_offset;
             u64 size = sheader[i]->sh_size;
             std::vector<u8> raw_data = get_raw(offset, size);
-            std::unique_ptr<Section> section(new Section(offset, size, raw_data));
+            std::shared_ptr<Section> section(new Section(offset, size, raw_data));
             sections.push_back(section);
         }
 
@@ -89,6 +89,13 @@ class Elf {
 
     u64 get_program_header_num() { return eheader->e_phnum; }
 
+    void dump() {
+        for (int i = 0; i < sections.size(); i++) {
+            std::shared_ptr<Section> section = sections[i];
+            fmt::print("section[{}]: name={}\n", i, section->get_name());
+        }
+    }
+
   private:
     const std::vector<u8> raw;
     // elf header
@@ -98,7 +105,7 @@ class Elf {
     // section header
     std::vector<Elf64_Shdr *> sheader;
 
-    std::vector<std::unique_ptr<Section>> sections;
+    std::vector<std::shared_ptr<Section>> sections;
 };
 
 class ElfReader {
@@ -110,12 +117,14 @@ class ElfReader {
             std::exit(1);
         }
         std::vector<u8> raw = std::vector<u8>(std::istreambuf_iterator<char>(file), {});
-        elf = std::make_unique<Elf>(raw);
+        elf = std::make_shared<Elf>(new Elf(raw));
     }
 
     std::string get_filename() { return filename; }
 
+    std::shared_ptr<Elf> get_elf() { return elf; }
+
   private:
     const std::string filename;
-    std::unique_ptr<Elf> elf;
+    std::shared_ptr<Elf> elf;
 };

@@ -11,11 +11,15 @@ class Section {
   public:
     Section(u64 offset, u64 size, std::vector<u8> raw) : name("dummy"), offset(offset), size(size), raw(raw) {}
 
-    void set_name(std::string name) { name = name; }
+    void set_name(std::string s) { name = s; }
 
     std::vector<u8> get_raw() { return raw; }
 
     std::string get_name() { return name; }
+
+    u64 get_size() { return size; }
+
+    u64 get_offset() { return offset; }
 
   private:
     std::string name;
@@ -48,17 +52,24 @@ class Elf {
             u64 offset = sheader[i]->sh_offset;
             u64 size = sheader[i]->sh_size;
             std::vector<u8> raw_data = get_raw(offset, size);
-            std::shared_ptr<Section> section(new Section(offset, size, raw_data));
+            std::shared_ptr<Section> section = std::make_shared<Section>(Section(offset, size, raw_data));
             sections.push_back(section);
         }
 
         // set section name
         std::vector<u8> shstrtab_raw = sections[get_section_num() - 1]->get_raw();
+        // debug
+        // fmt::print(".shstrtab strats with {:c}{:c}{:c}{:c}{:c}...\n", shstrtab_raw[0], shstrtab_raw[1],
+        // shstrtab_raw[2],
+        //           shstrtab_raw[3], shstrtab_raw[4]);
+
         for (int i = 0; i < get_section_num(); i++) {
             u64 name_index = sheader[i]->sh_name;
             // FIXME: null文字はどうなるの？
-            std::string name(shstrtab_raw[name_index], shstrtab_raw[name_index + 20]);
-            sections[i]->set_name(name);
+            std::string name(&shstrtab_raw[name_index], &shstrtab_raw[name_index + 20]);
+            // debug print
+            // fmt::print("find section named {}\n", name.c_str());
+            sections[i]->set_name(name.c_str());
         }
     }
 
@@ -68,15 +79,6 @@ class Elf {
         if (get_elf_type() != ET_REL && get_elf_type() != ET_EXEC)
             return false;
         return true;
-    }
-
-    u8 get_section(u64 index) {
-        if (index >= get_section_num()) {
-            fmt::print("section[{}] does not exist", index);
-            std::exit(1);
-        }
-        // TODO:
-        return 0;
     }
 
     std::vector<u8> get_raw(u64 offset, u64 size) {
@@ -90,9 +92,25 @@ class Elf {
     u64 get_program_header_num() { return eheader->e_phnum; }
 
     void dump() {
+        // dump elf header
+        fmt::print("type : {}\n", eheader->e_type);
+        fmt::print("version: {}\n", eheader->e_version);
+        /*
+        // section header
+        for (int i = 0; i < eheader->e_shnum; i++) {
+            fmt::print("section[{}]:\n", i);
+            fmt::print("  name : {}\n", sheader[i]->sh_type);
+            fmt::print("  size : {}\n", sheader[i]->sh_size);
+        }
+        */
+
+        // dump sections
         for (int i = 0; i < sections.size(); i++) {
             std::shared_ptr<Section> section = sections[i];
-            fmt::print("section[{}]: name={}\n", i, section->get_name());
+            fmt::print("section[{}] :\n", i);
+            fmt::print("  name : \"{}\"\n", sections[i]->get_name());
+            fmt::print("  size : 0x{:x}\n", sections[i]->get_size());
+            fmt::print("  offset : 0x{:x}\n", sections[i]->get_offset());
         }
     }
 
@@ -104,7 +122,7 @@ class Elf {
     std::vector<Elf64_Phdr *> pheader;
     // section header
     std::vector<Elf64_Shdr *> sheader;
-
+    // sections
     std::vector<std::shared_ptr<Section>> sections;
 };
 
@@ -117,12 +135,17 @@ class ElfReader {
             std::exit(1);
         }
         std::vector<u8> raw = std::vector<u8>(std::istreambuf_iterator<char>(file), {});
-        elf = std::make_shared<Elf>(new Elf(raw));
+        elf = std::make_shared<Elf>(Elf(raw));
     }
 
     std::string get_filename() { return filename; }
 
     std::shared_ptr<Elf> get_elf() { return elf; }
+
+    void dump() {
+        fmt::print("content of {}\n", filename);
+        elf->dump();
+    }
 
   private:
     const std::string filename;

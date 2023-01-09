@@ -1,4 +1,5 @@
 #include "config.h"
+#include "elf.h"
 #include "myld.h"
 #include <elf.h>
 #include <fmt/core.h>
@@ -182,25 +183,9 @@ int main(int argc, char *argv[]) {
     }
 
     std::string elf_file_name = argv[1];
-    std::ifstream elf_file(elf_file_name);
 
-    if (!elf_file) {
-        fmt::print("Couldn't open elf file\n");
-        return 0;
-    }
-
-    std::vector<u8> elf_data(std::istreambuf_iterator<char>(elf_file), {});
-
-    Elf64_Ehdr *elf_header;
-    elf_header = (Elf64_Ehdr *)&(elf_data[0]);
-
-    fmt::print("file name       : {}\n", elf_file_name);
-    fmt::print("is relocatable? : {}\n", elf_header->e_type == ET_REL);
-
-    if (elf_header->e_type != ET_REL) {
-        fmt::print("file is not ELF relocatable\n");
-        return 0;
-    }
+    ElfReader reader(elf_file_name);
+    reader.dump();
 
     output_exe();
 

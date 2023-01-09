@@ -1,11 +1,13 @@
 #include "myld.h"
 #include <cassert>
 #include <elf.h>
+#include <fmt/core.h>
 #include <fstream>
 #include <memory>
-#include <optional>
 #include <string>
 #include <vector>
+
+namespace Myld::Elf {
 
 class Section {
   public:
@@ -65,7 +67,7 @@ class Elf {
 
         for (int i = 0; i < get_section_num(); i++) {
             u64 name_index = sheader[i]->sh_name;
-            // FIXME: null文字はどうなるの？
+            // FIXME: better handling
             std::string name(&shstrtab_raw[name_index], &shstrtab_raw[name_index + 20]);
             // debug print
             // fmt::print("find section named {}\n", name.c_str());
@@ -126,9 +128,9 @@ class Elf {
     std::vector<std::shared_ptr<Section>> sections;
 };
 
-class ElfReader {
+class Reader {
   public:
-    ElfReader(std::string filename) : filename(filename), elf(nullptr) {
+    Reader(std::string filename) : filename(filename), elf(nullptr) {
         std::ifstream file(filename);
         if (!file) {
             fmt::print("Couldn't open elf file\n");
@@ -151,3 +153,5 @@ class ElfReader {
     const std::string filename;
     std::shared_ptr<Elf> elf;
 };
+
+} // namespace Myld::Elf

@@ -20,7 +20,7 @@ int main(int argc, char *argv[]) {
     Myld::Elf::Reader reader(elf_file_name);
     reader.dump();
 
-    std::shared_ptr<Myld::Elf::Elf> obj;
+    std::shared_ptr<Myld::Elf::Elf> obj(reader.get_elf());
 
     // Myld::Elf::output_exe();
 

@@ -13,7 +13,9 @@ namespace Elf {
 
 class Section {
   public:
-    Section(u64 offset, u64 size, std::vector<u8> raw) : name("dummy"), offset(offset), size(size), raw(raw) {}
+    Section(u64 offset, u64 size, std::vector<u8> raw) : name("dummy"), offset(offset), size(size), raw(raw) {
+        assert(raw.size() == size);
+    }
 
     void set_name(std::string s) { name = s; }
 

@@ -1,7 +1,7 @@
 #ifndef GEN_ELF_H
 #define GEN_ELF_H
-#include "myld.h"
 #include "elf-core.h"
+#include "myld.h"
 #include <cassert>
 #include <elf.h>
 #include <fmt/core.h>
@@ -92,6 +92,7 @@ static section_data_raw string_table_to_raw(string_table str_table) {
 class Writer {
   public:
     Writer(std::string filename, std::shared_ptr<Elf> obj) : filename(filename), obj(obj) {
+        fmt::print("preparing elf writer\n");
         stream = std::ofstream(filename, std::ios::binary | std::ios::trunc);
 
         // hardcode for now
@@ -101,14 +102,16 @@ class Writer {
         calculate_offset();
     }
 
-    ~Writer() { stream.close(); }
+    //~Writer() { stream.close(); }
 
     void init_info(u64 ph_num, u64 sh_num) {
+        fmt::print("initializing elf info\n");
         pheader_entry_num = ph_num;
         sheader_entry_num = sh_num;
     }
 
     void init_section_data() {
+        fmt::print("initializing section data\n");
         str_table = {
             std::pair("\0", 1),
         };
@@ -122,9 +125,16 @@ class Writer {
         sh_name_null_index = 0;
         sh_name_strtab_index = 1;
         sh_name_shstrtab_index = 1 + 8;
-        sh_name_shstrtab_index = 1 + 8 + 10;
+        sh_name_text_index = 1 + 8 + 10;
+        fmt::print("created string tables\n");
 
+        auto text_section = obj->get_section_by_name(".text");
+        if (text_section == nullptr) {
+            fmt::print("Couldn't find .text section\n");
+            std::exit(1);
+        }
         text_section_size = obj->get_section_by_name(".text")->get_size();
+        fmt::print("initialized section data\n");
     }
 
     void calculate_offset() {
@@ -139,22 +149,25 @@ class Writer {
         section_strtab_ofs = section_text_ofs + text_section_size;
         section_shstrtab_ofs = section_strtab_ofs + calc_section_size(str_table);
         section_header_ofs = section_shstrtab_ofs + calc_section_size(shstr_table);
+        fmt::print("calculated offset\n");
     }
 
     void write_file() {
+        fmt::print("enter write_file\n");
         std::shared_ptr<Section> text_section = obj->get_section_by_name(".text");
 
         // elf header
-        Elf64_Ehdr *elf_header = create_header(1, 3, section_header_ofs);
+        Elf64_Ehdr *elf_header = create_header(pheader_entry_num, sheader_entry_num, section_header_ofs);
         stream.write((char *)elf_header, sizeof(Elf64_Ehdr));
 
         // program header
         Elf64_Phdr *program_header_entry_load = create_program_header_entry_load();
         stream.write((char *)program_header_entry_load, sizeof(Elf64_Phdr) * pheader_entry_num);
 
+        fmt::print("write text section\n");
         // .text
         // TODO: align?
-        stream.write(reinterpret_cast<char *>(text_section->get_raw().data()), str_table_size);
+        stream.write(reinterpret_cast<char *>(text_section->get_raw().data()), text_section_size);
 
         // .strtab
         stream.write(reinterpret_cast<char *>(string_table_to_raw(str_table).data()), str_table_size);

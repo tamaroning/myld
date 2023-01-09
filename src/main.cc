@@ -2,6 +2,7 @@
 #include "gen-elf.h"
 #include "parse-elf.h"
 #include <fmt/core.h>
+#include <memory>
 #include <string>
 
 // ref: https://tyfkda.github.io/blog/2020/04/20/elf-obj.html
@@ -19,7 +20,13 @@ int main(int argc, char *argv[]) {
     Myld::Elf::Reader reader(elf_file_name);
     reader.dump();
 
-    Myld::Elf::output_exe();
+    std::shared_ptr<Myld::Elf::Elf> obj;
+
+    // Myld::Elf::output_exe();
+
+    Myld::Elf::Writer writer("a.o", obj);
+    writer.write_file();
+    fmt::print("generated a.o\n");
 
     return 0;
 }

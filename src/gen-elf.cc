@@ -10,7 +10,7 @@ using namespace Myld::Elf;
 Elf64_Ehdr *create_header(Elf64_Half program_header_entry_num, Elf64_Half section_num, Elf64_Off section_header_start) {
     Elf64_Off program_header_offset = (program_header_entry_num == 0) ? 0 : sizeof(Elf64_Ehdr);
 
-    // .shstrtabセクションのindex
+    // .shstrtabセクションのindex (.shstrtabは最後のセクションに配置)
     Elf64_Half shstrtab_index = (section_num == 0) ? 0 : section_num - 1;
 
     Elf64_Ehdr *header = new Elf64_Ehdr{
@@ -41,7 +41,6 @@ Elf64_Ehdr *create_header(Elf64_Half program_header_entry_num, Elf64_Half sectio
         // 2 byte (number of section header entry)
         .e_shnum = section_num,
         // 2 byted
-        // .shstrtabは最後のセクションに配置 (1)
         .e_shstrndx = shstrtab_index,
     };
     return header;
@@ -78,6 +77,23 @@ Elf64_Shdr *create_section_header_entry_null(Elf64_Word section_name_index) {
     return section_header_entry_null;
 }
 
+Elf64_Shdr *create_section_header_entry_text(Elf64_Word section_name_index, Elf64_Xword section_size,
+                                             Elf64_Xword offset) {
+    Elf64_Shdr *shdr = new Elf64_Shdr;
+    shdr->sh_name = section_name_index;
+    shdr->sh_type = SHT_PROGBITS;
+    shdr->sh_flags = SHF_ALLOC | SHF_EXECINSTR;
+    shdr->sh_addr = 0x80000; // TODO:
+    shdr->sh_offset = offset;
+    shdr->sh_size = section_size;
+    shdr->sh_link = 0;
+    shdr->sh_info = 0;
+    shdr->sh_addralign = 1;
+    shdr->sh_entsize = 0;
+
+    return shdr;
+}
+
 Elf64_Shdr *create_section_header_entry_strtab(Elf64_Word section_name_index, Elf64_Xword section_size,
                                                Elf64_Xword offset) {
     Elf64_Shdr *shdr = new Elf64_Shdr;
@@ -95,80 +111,4 @@ Elf64_Shdr *create_section_header_entry_strtab(Elf64_Word section_name_index, El
     return shdr;
 }
 
-void output_exe() {
-    std::ofstream output_elf("a.out", std::ios::binary | std::ios::trunc);
-
-    // -----
-    // elf header
-    // -----
-    // program header table
-    // -----
-    // segment 1
-    // -----
-    // ...
-    // -----
-    // segment N
-    // -----
-    // section header table
-
-    // segmentは以下の順で並べる
-    // .text .strtab .shstrtab
-
-    const char *section_strtab = "\0";
-    Elf64_Off section_strtab_size = 1;
-
-    const char *shstrtab[4] = {
-        "\0",
-        ".strtab\0",
-        ".shstrtab\0",
-        ".text\0",
-    };
-    Elf64_Word name_null_ofs = 0;
-    Elf64_Word name_null_len = 1;
-    Elf64_Word name_strtab_ofs = name_null_ofs + name_null_len;
-    Elf64_Word name_strtab_len = 8;
-    Elf64_Word name_shstrtab_ofs = name_strtab_ofs + name_strtab_len;
-    Elf64_Word name_shstrtab_len = 10;
-    Elf64_Word name_text_ofs = name_shstrtab_ofs + name_shstrtab_len;
-    Elf64_Word name_text_len = 6;
-
-    Elf64_Off section_shstrtab_size = name_text_ofs + name_text_len;
-
-    Elf64_Half program_header_entry_num = 1;
-    Elf64_Off segment_start = sizeof(Elf64_Ehdr) + sizeof(Elf64_Phdr) * program_header_entry_num;
-    Elf64_Off section_strtab_start = segment_start;
-    Elf64_Off section_shstrtab_start = section_strtab_start + section_strtab_size;
-
-    Elf64_Off section_header_start = section_shstrtab_start + section_shstrtab_size;
-
-    // elf header
-    Elf64_Ehdr *elf_header = create_header(1, 3, section_header_start);
-    output_elf.write((char *)elf_header, sizeof(Elf64_Ehdr));
-
-    // program header
-    Elf64_Phdr *program_header_entry_load = create_program_header_entry_load();
-    output_elf.write((char *)program_header_entry_load, sizeof(Elf64_Phdr) * program_header_entry_num);
-
-    // .strtab
-    output_elf.write(section_strtab, section_strtab_size);
-    // .shstrtab
-    output_elf.write(shstrtab[0], name_null_len);
-    output_elf.write(shstrtab[1], name_strtab_len);
-    output_elf.write(shstrtab[2], name_shstrtab_len);
-    output_elf.write(shstrtab[3], name_text_len);
-
-    // section header
-    Elf64_Shdr *section_header_entry_null = create_section_header_entry_null(name_null_ofs);
-    output_elf.write(reinterpret_cast<const char *>(section_header_entry_null), sizeof(Elf64_Shdr));
-
-    Elf64_Shdr *section_header_entry_strtab =
-        create_section_header_entry_strtab(name_strtab_ofs, section_strtab_size, section_strtab_start);
-    output_elf.write(reinterpret_cast<const char *>(section_header_entry_strtab), sizeof(Elf64_Shdr));
-
-    Elf64_Shdr *section_header_entry_shstrtab =
-        create_section_header_entry_strtab(name_shstrtab_ofs, section_shstrtab_size, section_shstrtab_start);
-    output_elf.write((char *)section_header_entry_shstrtab, sizeof(Elf64_Shdr));
-
-    fmt::print("generated a.out\n");
-}
 } // namespace Myld::Elf

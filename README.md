@@ -9,10 +9,11 @@ cd linker
 cmake -S . -B build
 cmake --build build
 ```
+You can run `bear -- cmake -- build bulid` to crete compile_commands.json
 
 # Run
 ```
-./build/myld
+./build/myld <OBJECT FILE>
 ```
 
 # Test

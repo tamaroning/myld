@@ -1,11 +1,10 @@
 #include "config.h"
+#include "myld.h"
 #include <elf.h>
 #include <fmt/core.h>
 #include <fstream>
 #include <iostream>
 #include <vector>
-
-typedef uint8_t u8;
 
 // ref: https://tyfkda.github.io/blog/2020/04/20/elf-obj.html
 

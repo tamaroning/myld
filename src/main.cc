@@ -25,9 +25,9 @@ int main(int argc, char *argv[]) {
 
     std::shared_ptr<Myld::Elf::Parsed::Elf> obj(reader.get_elf());
 
-    Myld::Elf::Writer writer(kExeFileName, obj);
-    writer.write_file();
-    fmt::print("generated {}\n", kExeFileName);
+    //Myld::Elf::Writer writer(kExeFileName, obj);
+    //writer.write_file();
+    //fmt::print("generated {}\n", kExeFileName);
 
     return 0;
 }

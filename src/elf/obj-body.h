@@ -1,12 +1,15 @@
-#include <vector>
 #include "myld.h"
+#include <vector>
 
 namespace Myld {
 namespace Elf {
 
-enum SectionType {
-    StringTable
-};
+// TODO:
+// parseしたelfをリンカで扱いやすい形(ObjBody)にする
+// そのため、不必要なelf/program/section headerは取り除く
+// 一部headerの情報も保持しておいたほうがいいのかもしれない (entry pointとか?)
+
+enum SectionType { StringTable };
 
 class ObjSection {
   private:

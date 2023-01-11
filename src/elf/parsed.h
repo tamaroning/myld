@@ -163,18 +163,18 @@ class Elf {
         assert(get_section_by_name(".shstrtab") != nullptr);
 
         fmt::print("resolving symbol names\n");
-        auto symtab = get_section_by_name(".symtab");
-        auto symtab_r = symtab->get_raw();
-        fmt::print(".symtab: {:2x}{:2x}{:2x}{:2x}{:2x}{:2x}{:2x}{:2x}\n", symtab_r[0], symtab_r[1], symtab_r[2],
-                   symtab_r[3], symtab_r[4], symtab_r[5], symtab_r[6], symtab_r[7]);
-        // set name for each sym_table entry
+        // auto symtab = get_section_by_name(".symtab");
+        // auto symtab_r = symtab->get_raw();
+        //  fmt::print(".symtab: {:2x}{:2x}{:2x}{:2x}{:2x}{:2x}{:2x}{:2x}\n", symtab_r[0], symtab_r[1], symtab_r[2],
+        //             symtab_r[3], symtab_r[4], symtab_r[5], symtab_r[6], symtab_r[7]);
+        //   set name for each sym_table entry
         for (int i = 0; i < sym_table->get_symbol_num(); i++) {
-            fmt::print("symbol[{}]\n", i);
+            //fmt::print("symbol[{}]\n", i);
             auto entries = sym_table->get_symbols();
             auto strtab = get_section_by_name(".strtab");
             assert(strtab != nullptr);
             auto name_index = (*entries)[i].get_sym()->st_name;
-            fmt::print("name_index : 0x{:x}\n", name_index);
+            //fmt::print("name_index : 0x{:x}\n", name_index);
             std::string symbol_name =
                 std::string(&(strtab->get_raw()[name_index]), &(strtab->get_raw()[name_index + 20])).c_str();
             (*entries)[i].set_name(symbol_name);
@@ -237,6 +237,8 @@ class Elf {
         for (int i = 0; i < sym_table->get_symbol_num(); i++) {
             fmt::print("symbol[{}]:\n", i);
             fmt::print("  name : \"{}\"\n", (*entries)[i].get_name());
+            fmt::print("  value : 0x{:x}\n", (*entries)[i].get_sym()->st_value);
+            fmt::print("  info : 0x{:x}\n", (*entries)[i].get_sym()->st_info);
         }
     }
 

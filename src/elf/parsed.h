@@ -17,7 +17,11 @@ namespace Parsed {
 
 class SymTableEntry {
   public:
-    SymTableEntry(Elf64_Sym *raw) : name(std::nullopt) {}
+    SymTableEntry(std::vector<u8> raw_data) : name(std::nullopt), raw(raw_data) {
+        sym = (Elf64_Sym *)&(raw[0]);
+        auto symtab_r = raw;
+        fmt::print("name index of current sym entry: {}\n", sym->st_name);
+    }
 
     void set_name(std::string s) { name = s; }
 
@@ -26,11 +30,13 @@ class SymTableEntry {
         return name.value();
     }
 
-    Elf64_Sym *get_raw() const { return raw; }
+    Elf64_Sym *get_sym() const { return sym; }
 
   private:
     std::optional<std::string> name;
-    Elf64_Sym *raw;
+    Elf64_Sym *sym;
+    // FIXME: いらない？
+    std::vector<u8> raw;
 };
 
 class SymTable {
@@ -40,7 +46,9 @@ class SymTable {
           symbols(std::make_shared<std::vector<SymTableEntry>>(std::vector<SymTableEntry>({}))) {
         assert(entry_size == sizeof(Elf64_Sym));
         for (int i = 0; i < symbol_num; i++) {
-            symbols->push_back(SymTableEntry((Elf64_Sym *)(&raw[0] + i * sizeof(Elf64_Sym))));
+            u32 start = i * sizeof(Elf64_Sym);
+            u32 end = start + sizeof(Elf64_Sym);
+            symbols->push_back(SymTableEntry(std::vector(&raw[start], &raw[end])));
         }
     }
 
@@ -66,7 +74,6 @@ class Section {
     Section(SectionType type, u64 offset, u64 size, u64 entry_size, u64 align, std::vector<u8> raw)
         : name("[dummy]"), type(type), offset(offset), size(size), entry_size(entry_size), align(align), raw(raw) {
         assert(raw.size() == size);
-        // TODO: このassert合ってる?
         assert((align == 0 && type == SectionType::Null) || ((offset % align) == 0));
     }
 
@@ -127,8 +134,8 @@ class Elf {
 
             // found symbol table
             if (type == SectionType::SymTab) {
-                fmt::print("found symbol table\n");
                 u64 symbol_num = size / entry_size;
+                fmt::print("found symbol table (symbol num={})\n", symbol_num);
                 sym_table = std::make_optional<SymTable>(SymTable(symbol_num, entry_size, raw_data));
             }
 
@@ -156,15 +163,21 @@ class Elf {
         assert(get_section_by_name(".shstrtab") != nullptr);
 
         fmt::print("resolving symbol names\n");
+        auto symtab = get_section_by_name(".symtab");
+        auto symtab_r = symtab->get_raw();
+        fmt::print(".symtab: {:2x}{:2x}{:2x}{:2x}{:2x}{:2x}{:2x}{:2x}\n", symtab_r[0], symtab_r[1], symtab_r[2],
+                   symtab_r[3], symtab_r[4], symtab_r[5], symtab_r[6], symtab_r[7]);
         // set name for each sym_table entry
         for (int i = 0; i < sym_table->get_symbol_num(); i++) {
-            auto entry = sym_table->get_symbols();
+            fmt::print("symbol[{}]\n", i);
+            auto entries = sym_table->get_symbols();
             auto strtab = get_section_by_name(".strtab");
-            u32 name_index = (u32) (*entry)[i].get_raw()->st_name;
-            fmt::print("name_index : {}\n", name_index);
-            std::string symbol_name(&(strtab->get_raw()[name_index]), &(strtab->get_raw()[name_index + 20]));
-            //std::string symbol_name = "hogee";
-            (*entry)[i].set_name(symbol_name);
+            assert(strtab != nullptr);
+            auto name_index = (*entries)[i].get_sym()->st_name;
+            fmt::print("name_index : 0x{:x}\n", name_index);
+            std::string symbol_name =
+                std::string(&(strtab->get_raw()[name_index]), &(strtab->get_raw()[name_index + 20])).c_str();
+            (*entries)[i].set_name(symbol_name);
         }
     }
 
@@ -223,7 +236,7 @@ class Elf {
         auto entries = sym_table->get_symbols();
         for (int i = 0; i < sym_table->get_symbol_num(); i++) {
             fmt::print("symbol[{}]:\n", i);
-            fmt::print("  name : {}\n", (*entries)[i].get_name());
+            fmt::print("  name : \"{}\"\n", (*entries)[i].get_name());
         }
     }
 

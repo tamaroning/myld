@@ -19,6 +19,7 @@ int main(int argc, char *argv[]) {
 
     std::string elf_file_name = argv[1];
 
+    fmt::print("preparing elf reader\n");
     Myld::Elf::Reader reader(elf_file_name);
     reader.dump();
 

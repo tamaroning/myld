@@ -17,7 +17,7 @@ namespace Parsed {
 
 class SymTableEntry {
   public:
-    SymTableEntry(Elf64_Sym *raw) : name(std::nullopt), raw(raw) {}
+    SymTableEntry(Elf64_Sym *raw) : name(std::nullopt) {}
 
     void set_name(std::string s) { name = s; }
 
@@ -40,7 +40,7 @@ class SymTable {
           symbols(std::make_shared<std::vector<SymTableEntry>>(std::vector<SymTableEntry>({}))) {
         assert(entry_size == sizeof(Elf64_Sym));
         for (int i = 0; i < symbol_num; i++) {
-            symbols->push_back(SymTableEntry((Elf64_Sym *)&(raw[i])));
+            symbols->push_back(SymTableEntry((Elf64_Sym *)(&raw[0] + i * sizeof(Elf64_Sym))));
         }
     }
 
@@ -158,9 +158,13 @@ class Elf {
         fmt::print("resolving symbol names\n");
         // set name for each sym_table entry
         for (int i = 0; i < sym_table->get_symbol_num(); i++) {
-            fmt::print("hoge\n");
-            std::string symbol_name = "hoge";
-            (*sym_table->get_symbols())[i].set_name(symbol_name);
+            auto entry = sym_table->get_symbols();
+            auto strtab = get_section_by_name(".strtab");
+            u32 name_index = (u32) (*entry)[i].get_raw()->st_name;
+            fmt::print("name_index : {}\n", name_index);
+            std::string symbol_name(&(strtab->get_raw()[name_index]), &(strtab->get_raw()[name_index + 20]));
+            //std::string symbol_name = "hogee";
+            (*entry)[i].set_name(symbol_name);
         }
     }
 

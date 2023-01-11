@@ -2,8 +2,10 @@ test_name=$1
 src="./$test_name/$test_name.c"
 asm="./$test_name/$test_name.s"
 obj="./$test_name/$test_name.o"
-exe="./$test_name/$test_name"
+exe="./a.o"
 ldscr="./$test_name/$test_name.ld"
+
+LD="../build/myld"
 
 echo "test name : $test_name"
 echo "removing files"
@@ -16,9 +18,19 @@ echo "assembling $asm to object file"
 as -c $asm -o $obj --noexecstack
 
 echo "linking $obj"
-ld $obj -o $exe -T $ldscr -nostdlib
+#$LD $obj -o $exe -T $ldscr -nostdlib
+$LD $obj
+
+chmod +x $exe
 
 echo "running $exe"
-./$test_name/$test_name
+./$exe
 
-echo "return value is $?"
+actual=$?
+expected=0
+
+if [ $actual -eq $expected ]; then
+    echo "."
+else
+    echo "expected $expected, but got $actual"
+fi

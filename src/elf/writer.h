@@ -1,6 +1,5 @@
-#ifndef GEN_ELF_H
-#define GEN_ELF_H
-#include "elf-core.h"
+#include "parsed.h"
+#include "utils.h"
 #include "myld.h"
 #include <cassert>
 #include <elf.h>
@@ -53,20 +52,6 @@ class ElfBin {
 // segmentは以下の順で並べる
 // .text .strtab .shstrtab
 
-Elf64_Ehdr *create_header(Elf64_Half program_header_entry_num, Elf64_Half section_num, Elf64_Off section_header_start);
-
-Elf64_Phdr *create_program_header_entry_load();
-
-Elf64_Shdr *create_section_header_entry_null(Elf64_Word section_name_index);
-
-Elf64_Shdr *create_section_header_entry_text(Elf64_Word section_name_index, Elf64_Xword section_size,
-                                             Elf64_Xword offset);
-
-Elf64_Shdr *create_section_header_entry_strtab(Elf64_Word section_name_index, Elf64_Xword section_size,
-                                               Elf64_Xword offset);
-
-void output_exe();
-
 using string_table = std::vector<std::pair<const char *, u32>>;
 using section_data_raw = std::vector<u8>;
 
@@ -91,7 +76,7 @@ static section_data_raw string_table_to_raw(string_table str_table) {
 
 class Writer {
   public:
-    Writer(std::string filename, std::shared_ptr<Elf> obj) : filename(filename), obj(obj) {
+    Writer(std::string filename, std::shared_ptr<Parsed::Elf> obj) : filename(filename), obj(obj) {
         fmt::print("preparing elf writer\n");
         stream = std::ofstream(filename, std::ios::binary | std::ios::trunc);
 
@@ -144,7 +129,14 @@ class Writer {
 
         // calc offset
         program_header_ofs = sizeof(Elf64_Ehdr);
+
+        // segmentのスタートを4kに揃える
         segment_ofs = program_header_ofs + sizeof(Elf64_Phdr) * pheader_entry_num;
+        if (segment_ofs % 0x1000 != 0) {
+            padding_before_null_section = 0x1000 - (segment_ofs % 0x1000);
+            segment_ofs += padding_before_null_section;
+        }
+
         section_text_ofs = segment_ofs;
         section_strtab_ofs = section_text_ofs + text_section_size;
         section_shstrtab_ofs = section_strtab_ofs + calc_section_size(str_table);
@@ -154,7 +146,7 @@ class Writer {
 
     void write_file() {
         fmt::print("enter write_file\n");
-        std::shared_ptr<Section> text_section = obj->get_section_by_name(".text");
+        std::shared_ptr<Parsed::Section> text_section = obj->get_section_by_name(".text");
 
         // elf header
         Elf64_Ehdr *elf_header = create_header(pheader_entry_num, sheader_entry_num, section_header_ofs);
@@ -164,9 +156,15 @@ class Writer {
         Elf64_Phdr *program_header_entry_load = create_program_header_entry_load();
         stream.write((char *)program_header_entry_load, sizeof(Elf64_Phdr) * pheader_entry_num);
 
-        fmt::print("write text section\n");
+        // padding before null section
+        std::fill_n(std::ostream_iterator<char>(stream), padding_before_null_section, '\0');
+
+        fmt::print("writing section data\n");
+
+        // null section
+        // do nothing
+
         // .text
-        // TODO: align?
         stream.write(reinterpret_cast<char *>(text_section->get_raw().data()), text_section_size);
 
         // .strtab
@@ -225,10 +223,11 @@ class Writer {
     u64 section_shstrtab_ofs;
     u64 section_header_ofs;
 
+    u64 padding_before_null_section = 0;
+
     // object files
-    std::shared_ptr<Elf> obj;
+    std::shared_ptr<Parsed::Elf> obj;
 };
 
 } // namespace Elf
 } // namespace Myld
-#endif

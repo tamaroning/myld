@@ -1,15 +1,18 @@
-#ifndef ELF_CORE_H
-#define ELF_CORE_H
+#ifndef ELF_PARSED_H
+#define ELF_PARSED_H
+
+#include "myld.h"
+#include <cassert>
+#include <elf.h>
+#include <fmt/core.h>
 #include <memory>
 #include <string>
 #include <vector>
-#include "myld.h"
-#include <elf.h>
-#include <fmt/core.h>
-#include <cassert>
 
 namespace Myld {
 namespace Elf {
+
+namespace Parsed {
 
 class Section {
   public:
@@ -139,6 +142,8 @@ class Elf {
     // sections
     std::vector<std::shared_ptr<Section>> sections;
 };
+
+} // namespace Parsed
 } // namespace Elf
 } // namespace Myld
 

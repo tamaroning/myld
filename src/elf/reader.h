@@ -1,6 +1,4 @@
-#ifndef PARSE_ELF_H
-#define PARSE_ELF_H
-#include "elf-core.h"
+#include "parsed.h"
 #include "myld.h"
 #include <cassert>
 #include <elf.h>
@@ -21,12 +19,12 @@ class Reader {
             std::exit(1);
         }
         std::vector<u8> raw = std::vector<u8>(std::istreambuf_iterator<char>(file), {});
-        elf = std::make_shared<Elf>(Elf(raw));
+        elf = std::make_shared<Parsed::Elf>(Parsed::Elf(raw));
     }
 
     std::string get_filename() { return filename; }
 
-    std::shared_ptr<Elf> get_elf() { return elf; }
+    std::shared_ptr<Parsed::Elf> get_elf() { return elf; }
 
     void dump() {
         fmt::print("content of {}\n", filename);
@@ -35,9 +33,7 @@ class Reader {
 
   private:
     const std::string filename;
-    std::shared_ptr<Elf> elf;
+    std::shared_ptr<Parsed::Elf> elf;
 };
 
 } // namespace Myld::Elf
-
-#endif

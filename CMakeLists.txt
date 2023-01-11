@@ -8,7 +8,7 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall")
 project(myld VERSION 0.1)
 
 # エントリーポイント
-add_executable(myld src/main.cc src/gen-elf.cc)
+add_executable(myld src/main.cc)
 
 # config.hがbuild/に生成されるのでリンクする
 configure_file(config.h.in config.h)
@@ -21,3 +21,11 @@ target_include_directories(myld PUBLIC ${PROJECT_SOURCE_DIR}/src)
 find_package(fmt REQUIRED)
 include_directories(${fmt_INCLUDE_DIRS})
 target_link_libraries(myld fmt::fmt)
+
+# test
+#add_test(
+#  NAME link_test
+#  COMMAND $<TARGET_FILE:myld> --only=mylib::hoge # mylib::hoge というテストのみ実行する
+#  CONFIGURATIONS Release # テスト構成がReleaseのときのみ実行
+#  WORKING_DIRECTORY ${PROJECT_BINARY_DIR}/tmp # 実行ディレクトリは、ビルドディレクトリ直下のtmpディレクトリ
+#)

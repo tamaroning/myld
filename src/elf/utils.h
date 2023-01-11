@@ -1,13 +1,10 @@
+
 #include <elf.h>
-#include <fmt/core.h>
-#include <fstream>
-#include <iostream>
-#include <vector>
 
-namespace Myld::Elf {
-using namespace Myld::Elf;
+namespace Myld {
+namespace Elf {
 
-Elf64_Ehdr *create_header(Elf64_Half program_header_entry_num, Elf64_Half section_num, Elf64_Off section_header_start) {
+static Elf64_Ehdr *create_header(Elf64_Half program_header_entry_num, Elf64_Half section_num, Elf64_Off section_header_start) {
     Elf64_Off program_header_offset = (program_header_entry_num == 0) ? 0 : sizeof(Elf64_Ehdr);
 
     // .shstrtabセクションのindex (.shstrtabは最後のセクションに配置)
@@ -46,22 +43,23 @@ Elf64_Ehdr *create_header(Elf64_Half program_header_entry_num, Elf64_Half sectio
     return header;
 }
 
-Elf64_Phdr *create_program_header_entry_load() {
+static Elf64_Phdr *create_program_header_entry_load() {
     // FIXME: use dummy for now
     Elf64_Phdr *program_header_entry_load = new Elf64_Phdr{
+        // FIXME:
         .p_type = PT_LOAD,
-        .p_flags = PF_R | PF_X, // TODO:
-        .p_offset = 0x1000,     // FIXME:
-        .p_vaddr = 0x80000,     // TODO:
-        .p_paddr = 0x80000,     // TODO:
-        .p_filesz = 0x38,       // TODO:
-        .p_memsz = 0x38,
+        .p_flags = PF_R | PF_X, 
+        .p_offset = 0x1000, // TODO: .textの_startまでのオフセット
+        .p_vaddr = 0x80000,     
+        .p_paddr = 0x80000,     
+        .p_filesz = 0x18,       
+        .p_memsz = 0x18,
         .p_align = 0x1000,
     };
     return program_header_entry_load;
 }
 
-Elf64_Shdr *create_section_header_entry_null(Elf64_Word section_name_index) {
+static Elf64_Shdr *create_section_header_entry_null(Elf64_Word section_name_index) {
     Elf64_Shdr *section_header_entry_null = new Elf64_Shdr{
         .sh_name = section_name_index,
         .sh_type = SHT_NULL,
@@ -77,7 +75,7 @@ Elf64_Shdr *create_section_header_entry_null(Elf64_Word section_name_index) {
     return section_header_entry_null;
 }
 
-Elf64_Shdr *create_section_header_entry_text(Elf64_Word section_name_index, Elf64_Xword section_size,
+static Elf64_Shdr *create_section_header_entry_text(Elf64_Word section_name_index, Elf64_Xword section_size,
                                              Elf64_Xword offset) {
     Elf64_Shdr *shdr = new Elf64_Shdr;
     shdr->sh_name = section_name_index;
@@ -94,7 +92,7 @@ Elf64_Shdr *create_section_header_entry_text(Elf64_Word section_name_index, Elf6
     return shdr;
 }
 
-Elf64_Shdr *create_section_header_entry_strtab(Elf64_Word section_name_index, Elf64_Xword section_size,
+static Elf64_Shdr *create_section_header_entry_strtab(Elf64_Word section_name_index, Elf64_Xword section_size,
                                                Elf64_Xword offset) {
     Elf64_Shdr *shdr = new Elf64_Shdr;
     shdr->sh_name = section_name_index;
@@ -111,4 +109,5 @@ Elf64_Shdr *create_section_header_entry_strtab(Elf64_Word section_name_index, El
     return shdr;
 }
 
-} // namespace Myld::Elf
+} // namespace Elf
+} // namespace Myld

@@ -5,6 +5,7 @@
 #include <cassert>
 #include <elf.h>
 #include <fmt/core.h>
+#include <fmt/format.h>
 #include <memory>
 #include <optional>
 #include <string>
@@ -18,7 +19,7 @@ class SymTableEntry {
   public:
     SymTableEntry(Elf64_Sym *raw) : name(std::nullopt), raw(raw) {}
 
-    void set_name(std::string s) { name = std::optional(s); }
+    void set_name(std::string s) { name = s; }
 
     std::string get_name() const {
         assert(name != std::nullopt);
@@ -37,19 +38,17 @@ class SymTable {
     SymTable(u64 symbol_num, u64 entry_size, std::vector<u8> raw) : symbol_num(symbol_num) {
         assert(entry_size == sizeof(Elf64_Sym));
         for (int i = 0; i < symbol_num; i++) {
-            symbols->push_back(SymTableEntry((Elf64_Sym *)&(raw[i])));
+            symbols.push_back(SymTableEntry((Elf64_Sym *)&(raw[i])));
         }
     }
 
     u64 get_symbol_num() const { return symbol_num; }
 
-    std::shared_ptr<std::vector<SymTableEntry>> get_symbols() const {
-        return std::make_shared<std::vector<SymTableEntry>>(symbols);
-    }
+    std::vector<SymTableEntry> get_symbols() { return std::vector<SymTableEntry>(symbols); }
 
   private:
     u64 symbol_num;
-    std::shared_ptr<std::vector<SymTableEntry>> symbols;
+    std::vector<SymTableEntry> symbols;
 };
 
 enum class SectionType : u32 {
@@ -155,14 +154,19 @@ class Elf {
 
         fmt::print("resolving symbol names\n");
         // set name for each sym_table entry
-        auto symbols = sym_table->get_symbols();
         // FIXME: ここで書き換えられないのはなぜ？
+        auto entries = sym_table->get_symbols();
+        fmt::print("&entries: {}\n", fmt::ptr(&entries));
+        fmt::print("&entries[0]: {}\n", fmt::ptr(&entries[0]));
+        fmt::print("&entries[0].name: {}\n", fmt::ptr(&entries[0].name));
         for (int i = 0; i < sym_table->get_symbol_num(); i++) {
-            fmt::print("nta\n");
-            std::string symbol_name = "nya";
-            (*symbols)[i].set_name(symbol_name);
+            fmt::print("hoge\n");
+            std::string symbol_name = "hoge";
+            entries[i].set_name(symbol_name);
+            fmt::print("written {}\n", entries[i].name.value());
         }
-        fmt::print("symbols[i].name={}\n", ((*symbols)[0].name == std::nullopt) ? "nullopt" : "somename");
+        // fmt::print("symbols[0].name={}\n", (symbols[0].name == std::nullopt) ? "nullopt" : symbols[0].name.value());
+        // fmt::print("symbols[1].name={}\n", (symbols[1].name == std::nullopt) ? "nullopt" : symbols[1].name.value());
     }
 
     u8 get_elf_type() { return eheader->e_type; }
@@ -218,9 +222,12 @@ class Elf {
         // dump symbol table
         fmt::print("symbols\n");
         auto entries = sym_table->get_symbols();
+        fmt::print("&entries: {}\n", fmt::ptr(&entries));
+        fmt::print("&entries[0]: {}\n", fmt::ptr(&entries[0]));
+        fmt::print("&entries[0].name: {}\n", fmt::ptr(&entries[0].name));
         for (int i = 0; i < sym_table->get_symbol_num(); i++) {
             fmt::print("symbol[{}]:\n", i);
-            fmt::print("  name : {}\n", (*entries)[i].get_name());
+            fmt::print("  name : {}\n", entries[i].get_name());
         }
     }
 

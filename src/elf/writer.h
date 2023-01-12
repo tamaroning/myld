@@ -15,6 +15,14 @@ namespace Myld {
 namespace Elf {
 using namespace Myld::Elf;
 
+const u64 kEntryAddr = 0x80000;
+const u64 kTextOffset = 0x1000;
+const u64 kVAddr = 0x80000;
+const u64 kPAddr = 0x80000;
+const u64 kFileSize = 0x18;
+const u64 kMemSize = 0x18;
+const u64 kTextAlign = 0x1000;
+
 /*
 class SectionBin {
   public:
@@ -87,8 +95,6 @@ class Writer {
         calculate_offset();
     }
 
-    //~Writer() { stream.close(); }
-
     void init_info(u64 ph_num, u64 sh_num) {
         fmt::print("initializing elf info\n");
         pheader_entry_num = ph_num;
@@ -149,11 +155,12 @@ class Writer {
         std::shared_ptr<Parsed::Section> text_section = obj->get_section_by_name(".text");
 
         // elf header
-        Elf64_Ehdr *elf_header = create_header(pheader_entry_num, sheader_entry_num, section_header_ofs);
+        Elf64_Ehdr *elf_header = create_header(pheader_entry_num, sheader_entry_num, section_header_ofs, kEntryAddr);
         stream.write((char *)elf_header, sizeof(Elf64_Ehdr));
 
         // program header
-        Elf64_Phdr *program_header_entry_load = create_program_header_entry_load();
+        // TODO:
+        Elf64_Phdr *program_header_entry_load = create_program_header_entry_load(kTextOffset, kVAddr, kPAddr, kFileSize, kMemSize, kTextAlign);
         stream.write((char *)program_header_entry_load, sizeof(Elf64_Phdr) * pheader_entry_num);
 
         // padding before null section
@@ -177,8 +184,9 @@ class Writer {
         Elf64_Shdr *section_header_entry_null = create_section_header_entry_null(sh_name_null_index);
         stream.write(reinterpret_cast<const char *>(section_header_entry_null), sizeof(Elf64_Shdr));
         // .text
+        // TODO: linkした結果を用いて出力する
         Elf64_Shdr *section_header_entry_text =
-            create_section_header_entry_text(sh_name_text_index, text_section->get_size(), section_text_ofs);
+            create_section_header_entry_text(sh_name_text_index, text_section->get_addr() ,text_section->get_size(), section_text_ofs);
         stream.write(reinterpret_cast<const char *>(section_header_entry_text), sizeof(Elf64_Shdr));
         // .strtab
         Elf64_Shdr *section_header_entry_strtab =

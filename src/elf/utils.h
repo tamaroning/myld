@@ -4,7 +4,7 @@
 namespace Myld {
 namespace Elf {
 
-static Elf64_Ehdr *create_header(Elf64_Half program_header_entry_num, Elf64_Half section_num, Elf64_Off section_header_start) {
+static Elf64_Ehdr *create_header(Elf64_Half program_header_entry_num, Elf64_Half section_num, Elf64_Off section_header_start, Elf64_Addr entry_addr) {
     Elf64_Off program_header_offset = (program_header_entry_num == 0) ? 0 : sizeof(Elf64_Ehdr);
 
     // .shstrtabセクションのindex (.shstrtabは最後のセクションに配置)
@@ -20,7 +20,7 @@ static Elf64_Ehdr *create_header(Elf64_Half program_header_entry_num, Elf64_Half
         // 4 byte
         .e_version = EV_CURRENT,
         // 8 byte
-        .e_entry = 0x80000, // TODO:
+        .e_entry = entry_addr,
         // 8 byte
         .e_phoff = program_header_offset,
         // 8 byte
@@ -43,18 +43,16 @@ static Elf64_Ehdr *create_header(Elf64_Half program_header_entry_num, Elf64_Half
     return header;
 }
 
-static Elf64_Phdr *create_program_header_entry_load() {
-    // FIXME: use dummy for now
+static Elf64_Phdr *create_program_header_entry_load(Elf64_Addr offset, Elf64_Addr vaddr, Elf64_Addr paddr, Elf64_Xword file_size, Elf64_Xword mem_size, Elf64_Addr align) {
     Elf64_Phdr *program_header_entry_load = new Elf64_Phdr{
-        // FIXME:
         .p_type = PT_LOAD,
         .p_flags = PF_R | PF_X, 
-        .p_offset = 0x1000, // TODO: .textの_startまでのオフセット
-        .p_vaddr = 0x80000,     
-        .p_paddr = 0x80000,     
-        .p_filesz = 0x18,       
-        .p_memsz = 0x18,
-        .p_align = 0x1000,
+        .p_offset = offset,
+        .p_vaddr = vaddr,     
+        .p_paddr = paddr,     
+        .p_filesz = file_size,       
+        .p_memsz = mem_size,
+        .p_align = align,
     };
     return program_header_entry_load;
 }
@@ -75,13 +73,13 @@ static Elf64_Shdr *create_section_header_entry_null(Elf64_Word section_name_inde
     return section_header_entry_null;
 }
 
-static Elf64_Shdr *create_section_header_entry_text(Elf64_Word section_name_index, Elf64_Xword section_size,
+static Elf64_Shdr *create_section_header_entry_text(Elf64_Word section_name_index, Elf64_Addr addr,Elf64_Xword section_size,
                                              Elf64_Xword offset) {
     Elf64_Shdr *shdr = new Elf64_Shdr;
     shdr->sh_name = section_name_index;
     shdr->sh_type = SHT_PROGBITS;
     shdr->sh_flags = SHF_ALLOC | SHF_EXECINSTR;
-    shdr->sh_addr = 0x80000; // TODO:
+    shdr->sh_addr = addr,
     shdr->sh_offset = offset;
     shdr->sh_size = section_size;
     shdr->sh_link = 0;

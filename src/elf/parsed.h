@@ -71,8 +71,8 @@ enum class SectionType : u32 {
 
 class Section {
   public:
-    Section(SectionType type, u64 offset, u64 size, u64 entry_size, u64 align, std::vector<u8> raw)
-        : name("[dummy]"), type(type), offset(offset), size(size), entry_size(entry_size), align(align), raw(raw) {
+    Section(SectionType type, u64 addr, u64 offset,u64 size, u64 entry_size, u64 align, std::vector<u8> raw)
+        : name("[dummy]"), type(type), addr(addr), offset(offset), size(size), entry_size(entry_size), align(align), raw(raw) {
         assert(raw.size() == size);
         assert((align == 0 && type == SectionType::Null) || ((offset % align) == 0));
     }
@@ -81,6 +81,7 @@ class Section {
 
     std::string get_name() const { return name; }
     SectionType get_type() const { return type; }
+    u64 get_addr() const { return addr; }
     u64 get_offset() const { return offset; }
     u64 get_size() const { return size; }
     u64 get_entry_size() const { return entry_size; }
@@ -90,6 +91,7 @@ class Section {
   private:
     std::string name;
     const SectionType type;
+    const u64 addr;
     const u64 offset;
     const u64 size;
     // now only used for .symtab
@@ -126,6 +128,7 @@ class Elf {
         for (int i = 0; i < get_section_num(); i++) {
             fmt::print("parsing sections[{}]\n", i);
             SectionType type = (SectionType)sheader[i]->sh_type;
+            u64 addr = sheader[i]->sh_addr;
             u64 offset = sheader[i]->sh_offset;
             u64 size = sheader[i]->sh_size;
             u64 entry_size = sheader[i]->sh_entsize;
@@ -140,7 +143,7 @@ class Elf {
             }
 
             std::shared_ptr<Section> section =
-                std::make_shared<Section>(Section(type, offset, size, entry_size, align, raw_data));
+                std::make_shared<Section>(Section(type, addr, offset, size, entry_size, align, raw_data));
             sections.push_back(section);
         }
         // checks if parser found symbol table

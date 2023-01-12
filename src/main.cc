@@ -7,7 +7,7 @@
 
 // ref: https://tyfkda.github.io/blog/2020/04/20/elf-obj.html
 
-const char *kExeFileName = "a.o";
+const char *kExeFileName = "myld-a.out";
 
 int main(int argc, char *argv[]) {
     fmt::print("myld version {}\n\n", MYLD_VERSION);
@@ -25,9 +25,9 @@ int main(int argc, char *argv[]) {
 
     std::shared_ptr<Myld::Elf::Parsed::Elf> obj(reader.get_elf());
 
-    //Myld::Elf::Writer writer(kExeFileName, obj);
-    //writer.write_file();
-    //fmt::print("generated {}\n", kExeFileName);
+    Myld::Elf::Writer writer(kExeFileName, obj);
+    writer.write_file();
+    fmt::print("generated {}\n", kExeFileName);
 
     return 0;
 }

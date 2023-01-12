@@ -170,7 +170,7 @@ class Elf {
         // auto symtab_r = symtab->get_raw();
         //  fmt::print(".symtab: {:2x}{:2x}{:2x}{:2x}{:2x}{:2x}{:2x}{:2x}\n", symtab_r[0], symtab_r[1], symtab_r[2],
         //             symtab_r[3], symtab_r[4], symtab_r[5], symtab_r[6], symtab_r[7]);
-        //   set name for each sym_table entry
+        // set name for each sym_table entry
         for (int i = 0; i < sym_table->get_symbol_num(); i++) {
             //fmt::print("symbol[{}]\n", i);
             auto entries = sym_table->get_symbols();

@@ -1,4 +1,4 @@
-#include "parsed.h"
+#include "elf/parse.h"
 #include "myld.h"
 #include <cassert>
 #include <elf.h>

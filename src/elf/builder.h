@@ -1,5 +1,5 @@
-#include "parsed.h"
-#include "utils.h"
+#include "elf/parse.h"
+#include "elf/utils.h"
 #include "myld.h"
 #include <cassert>
 #include <elf.h>
@@ -71,7 +71,7 @@ static u64 calc_section_size(string_table str_table) {
     return sum;
 }
 
-static u64 calc_section_size(section_data_raw section_raw) { return section_raw.size(); }
+//static u64 calc_section_size(section_data_raw section_raw) { return section_raw.size(); }
 
 static section_data_raw string_table_to_raw(string_table str_table) {
     std::vector<u8> raw;
@@ -82,10 +82,10 @@ static section_data_raw string_table_to_raw(string_table str_table) {
     return raw;
 }
 
-class Writer {
+class Builder {
   public:
-    Writer(std::string filename, std::shared_ptr<Parsed::Elf> obj) : filename(filename), obj(obj) {
-        fmt::print("preparing elf writer\n");
+    Builder(std::string filename, std::shared_ptr<Parsed::Elf> obj) : filename(filename), obj(obj) {
+        fmt::print("preparing elf builder\n");
         stream = std::ofstream(filename, std::ios::binary | std::ios::trunc);
 
         // hardcode for now

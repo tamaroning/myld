@@ -1,6 +1,6 @@
 #include "config.h"
-#include "elf/reader.h"
-#include "elf/writer.h"
+#include "reader.h"
+#include "elf/builder.h"
 #include <fmt/core.h>
 #include <memory>
 #include <string>
@@ -25,8 +25,8 @@ int main(int argc, char *argv[]) {
 
     std::shared_ptr<Myld::Elf::Parsed::Elf> obj(reader.get_elf());
 
-    Myld::Elf::Writer writer(kExeFileName, obj);
-    writer.write_file();
+    Myld::Elf::Builder builder(kExeFileName, obj);
+    builder.write_file();
     fmt::print("generated {}\n", kExeFileName);
 
     return 0;

@@ -2,7 +2,7 @@ test_name=$1
 src="./$test_name/$test_name.c"
 asm="./$test_name/$test_name.s"
 obj="./$test_name/$test_name.o"
-exe="./myld-a.out"
+exe="./$test_name/myld-a.out"
 ldscr="./$test_name/$test_name.ld"
 
 LD="../build/myld"
@@ -19,7 +19,7 @@ as -c $asm -o $obj --noexecstack
 
 echo "linking $obj"
 #$LD $obj -o $exe -T $ldscr -nostdlib
-$LD $obj
+$LD $obj -o $exe
 
 chmod +x $exe
 

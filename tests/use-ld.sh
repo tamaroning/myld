@@ -2,7 +2,7 @@ test_name=$1
 src="./$test_name/$test_name.c"
 asm="./$test_name/$test_name.s"
 obj="./$test_name/$test_name.o"
-exe="./a.out"
+exe="./$test_name/ld-a.out"
 ldscr="./$test_name/$test_name.ld"
 
 #LD="../build/myld"

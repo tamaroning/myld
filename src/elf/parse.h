@@ -62,17 +62,30 @@ class SymTable {
     std::shared_ptr<std::vector<SymTableEntry>> symbols;
 };
 
+/*
+class RelaText {
+  public:
+    RelaText(u64 reloc_num, u64 entry_size, std::vector<u8> raw): reloc_num(reloc_num) {}
+
+  private:
+    u64 reloc_num;
+    // std::shared_ptr<std::vector<SymTableEntry>> symbols;
+};
+*/
+
 enum class SectionType : u32 {
     Null = SHT_NULL,
     ProgBits = SHT_PROGBITS, // .text
     SymTab = SHT_SYMTAB,     // .symtab
     StrTab = SHT_STRTAB,     // .strtab, .shstrtab
+    Rela = SHT_RELA,         // .rela
 };
 
 class Section {
   public:
-    Section(SectionType type, u64 addr, u64 offset,u64 size, u64 entry_size, u64 align, std::vector<u8> raw)
-        : name("[dummy]"), type(type), addr(addr), offset(offset), size(size), entry_size(entry_size), align(align), raw(raw) {
+    Section(SectionType type, u64 addr, u64 offset, u64 size, u64 entry_size, u64 align, std::vector<u8> raw)
+        : name("[dummy]"), type(type), addr(addr), offset(offset), size(size), entry_size(entry_size), align(align),
+          raw(raw) {
         assert(raw.size() == size);
         assert((align == 0 && type == SectionType::Null) || ((offset % align) == 0));
     }
@@ -172,12 +185,12 @@ class Elf {
         //             symtab_r[3], symtab_r[4], symtab_r[5], symtab_r[6], symtab_r[7]);
         // set name for each sym_table entry
         for (int i = 0; i < sym_table->get_symbol_num(); i++) {
-            //fmt::print("symbol[{}]\n", i);
+            // fmt::print("symbol[{}]\n", i);
             auto entries = sym_table->get_symbols();
             auto strtab = get_section_by_name(".strtab");
             assert(strtab != nullptr);
             auto name_index = (*entries)[i].get_sym()->st_name;
-            //fmt::print("name_index : 0x{:x}\n", name_index);
+            // fmt::print("name_index : 0x{:x}\n", name_index);
             std::string symbol_name =
                 std::string(&(strtab->get_raw()[name_index]), &(strtab->get_raw()[name_index + 20])).c_str();
             (*entries)[i].set_name(symbol_name);
@@ -212,8 +225,8 @@ class Elf {
 
     void dump() {
         // dump elf header
-        fmt::print("ELF type : {}\n", eheader->e_type);
-        fmt::print("ELF version: {}\n", eheader->e_version);
+        fmt::print("ELF type: {}, ", eheader->e_type);
+        fmt::print("version: {}\n", eheader->e_version);
         /*
         // section header
         for (int i = 0; i < eheader->e_shnum; i++) {
@@ -226,22 +239,21 @@ class Elf {
         // dump sections
         for (int i = 0; i < sections.size(); i++) {
             std::shared_ptr<Section> section = sections[i];
-            fmt::print("section[{}] :\n", i);
-            fmt::print("  name : \"{}\"\n", sections[i]->get_name());
-            fmt::print("  size : 0x{:x}\n", sections[i]->get_size());
-            fmt::print("  entsize : 0x{:x}\n", sections[i]->get_entry_size());
-            fmt::print("  offset : 0x{:x}\n", sections[i]->get_offset());
-            fmt::print("  align : 0x{:x}\n", sections[i]->get_align());
+            fmt::print("section[{}] :\n  ", i);
+            fmt::print("name: \"{}\", ", sections[i]->get_name());
+            fmt::print("size: 0x{:x}, ", sections[i]->get_size());
+            fmt::print("entsize: 0x{:x}, ", sections[i]->get_entry_size());
+            fmt::print("offset: 0x{:x}, ", sections[i]->get_offset());
+            fmt::print("align: 0x{:x}\n", sections[i]->get_align());
         }
 
         // dump symbol table
-        fmt::print("symbols\n");
         auto entries = sym_table->get_symbols();
         for (int i = 0; i < sym_table->get_symbol_num(); i++) {
-            fmt::print("symbol[{}]:\n", i);
-            fmt::print("  name : \"{}\"\n", (*entries)[i].get_name());
-            fmt::print("  value : 0x{:x}\n", (*entries)[i].get_sym()->st_value);
-            fmt::print("  info : 0x{:x}\n", (*entries)[i].get_sym()->st_info);
+            fmt::print("symbol[{}]:\n  ", i);
+            fmt::print("name : \"{}\", ", (*entries)[i].get_name());
+            fmt::print("value : 0x{:x}, ", (*entries)[i].get_sym()->st_value);
+            fmt::print("info : 0x{:x}\n", (*entries)[i].get_sym()->st_info);
         }
     }
 
@@ -257,6 +269,7 @@ class Elf {
     std::vector<std::shared_ptr<Section>> sections;
 
     // symbol table
+    // has value when the elf contains .symtab section
     std::optional<SymTable> sym_table;
 };
 

@@ -82,10 +82,10 @@ static section_data_raw string_table_to_raw(string_table str_table) {
     return raw;
 }
 
-class Builder {
+class Writer {
   public:
-    Builder(std::string filename, std::shared_ptr<Parsed::Elf> obj) : filename(filename), obj(obj) {
-        fmt::print("preparing elf builder\n");
+    Writer(std::string filename, std::shared_ptr<Parsed::Elf> obj) : filename(filename), obj(obj) {
+        fmt::print("preparing elf writer\n");
         stream = std::ofstream(filename, std::ios::binary | std::ios::trunc);
 
         // hardcode for now

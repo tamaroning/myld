@@ -1,5 +1,5 @@
 #include "config.h"
-#include "elf/builder.h"
+#include "elf/writer.h"
 #include "reader.h"
 #include <fmt/core.h>
 #include <memory>
@@ -13,7 +13,7 @@ int main(int argc, char *argv[]) {
     fmt::print("myld version {}\n", MYLD_VERSION);
 
     if (argc < 2) {
-        fmt::print("Usage: myld <FILE>\n");
+        fmt::print("Usage: myld [options] <filename>\n");
         return 0;
     }
 
@@ -42,8 +42,8 @@ int main(int argc, char *argv[]) {
 
     std::shared_ptr<Myld::Elf::Parsed::Elf> obj(reader.get_elf());
 
-    Myld::Elf::Builder builder(output_filename, obj);
-    builder.write_file();
+    Myld::Elf::Writer writer(output_filename, obj);
+    writer.write_file();
     fmt::print("generated {}\n", output_filename);
 
     return 0;

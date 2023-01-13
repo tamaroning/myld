@@ -71,7 +71,7 @@ static u64 calc_section_size(string_table str_table) {
     return sum;
 }
 
-//static u64 calc_section_size(section_data_raw section_raw) { return section_raw.size(); }
+// static u64 calc_section_size(section_data_raw section_raw) { return section_raw.size(); }
 
 static section_data_raw string_table_to_raw(string_table str_table) {
     std::vector<u8> raw;
@@ -124,7 +124,7 @@ class Builder {
             fmt::print("Couldn't find .text section\n");
             std::exit(1);
         }
-        text_section_size = obj->get_section_by_name(".text")->get_size();
+        text_section_size = obj->get_section_by_name(".text")->get_header()->sh_size;
         fmt::print("initialized section data\n");
     }
 
@@ -160,7 +160,8 @@ class Builder {
 
         // program header
         // TODO:
-        Elf64_Phdr *program_header_entry_load = create_program_header_entry_load(kTextOffset, kVAddr, kPAddr, kFileSize, kMemSize, kTextAlign);
+        Elf64_Phdr *program_header_entry_load =
+            create_program_header_entry_load(kTextOffset, kVAddr, kPAddr, kFileSize, kMemSize, kTextAlign);
         stream.write((char *)program_header_entry_load, sizeof(Elf64_Phdr) * pheader_entry_num);
 
         // padding before null section
@@ -172,7 +173,7 @@ class Builder {
         // do nothing
 
         // .text
-        stream.write(reinterpret_cast<char *>(text_section->get_raw().data()), text_section_size);
+        stream.write(reinterpret_cast<char *>(text_section->get_raw()), text_section_size);
 
         // .strtab
         stream.write(reinterpret_cast<char *>(string_table_to_raw(str_table).data()), str_table_size);
@@ -186,7 +187,8 @@ class Builder {
         // .text
         // TODO: linkした結果を用いて出力する
         Elf64_Shdr *section_header_entry_text =
-            create_section_header_entry_text(sh_name_text_index, text_section->get_addr() ,text_section->get_size(), section_text_ofs);
+            create_section_header_entry_text(sh_name_text_index, text_section->get_header()->sh_addr,
+                                             text_section->get_header()->sh_size, section_text_ofs);
         stream.write(reinterpret_cast<const char *>(section_header_entry_text), sizeof(Elf64_Shdr));
         // .strtab
         Elf64_Shdr *section_header_entry_strtab =

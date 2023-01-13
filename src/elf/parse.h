@@ -11,17 +11,15 @@
 #include <string>
 #include <vector>
 
+// TODO: 生ポインタを扱ってる箇所が十分なサイズのデータを指しているか確かめる必要がある
+
 namespace Myld {
 namespace Elf {
 namespace Parsed {
 
 class SymTableEntry {
   public:
-    SymTableEntry(std::vector<u8> raw_data) : name(std::nullopt), raw(raw_data) {
-        sym = (Elf64_Sym *)&(raw[0]);
-        auto symtab_r = raw;
-        fmt::print("name index of current sym entry: {}\n", sym->st_name);
-    }
+    SymTableEntry(Elf64_Sym *raw) : name(std::nullopt), sym(raw) {}
 
     void set_name(std::string s) { name = s; }
 
@@ -35,20 +33,17 @@ class SymTableEntry {
   private:
     std::optional<std::string> name;
     Elf64_Sym *sym;
-    // FIXME: いらない？
-    std::vector<u8> raw;
 };
 
 class SymTable {
   public:
-    SymTable(u64 symbol_num, u64 entry_size, std::vector<u8> raw)
+    SymTable(u64 symbol_num, u64 entry_size, u8 *raw)
         : symbol_num(symbol_num),
           symbols(std::make_shared<std::vector<SymTableEntry>>(std::vector<SymTableEntry>({}))) {
         assert(entry_size == sizeof(Elf64_Sym));
         for (int i = 0; i < symbol_num; i++) {
             u32 start = i * sizeof(Elf64_Sym);
-            u32 end = start + sizeof(Elf64_Sym);
-            symbols->push_back(SymTableEntry(std::vector(&raw[start], &raw[end])));
+            symbols->push_back(SymTableEntry((Elf64_Sym *)&raw[start]));
         }
     }
 
@@ -73,50 +68,35 @@ class RelaText {
 };
 */
 
-enum class SectionType : u32 {
-    Null = SHT_NULL,
-    ProgBits = SHT_PROGBITS, // .text
-    SymTab = SHT_SYMTAB,     // .symtab
-    StrTab = SHT_STRTAB,     // .strtab, .shstrtab
-    Rela = SHT_RELA,         // .rela
-};
-
+// struct represents a section. this contains section header
 class Section {
   public:
-    Section(SectionType type, u64 addr, u64 offset, u64 size, u64 entry_size, u64 align, std::vector<u8> raw)
-        : name("[dummy]"), type(type), addr(addr), offset(offset), size(size), entry_size(entry_size), align(align),
-          raw(raw) {
-        assert(raw.size() == size);
-        assert((align == 0 && type == SectionType::Null) || ((offset % align) == 0));
+    Section(Elf64_Shdr *header, u8 *raw) : name(std::nullopt), header(header), raw(raw) {
+        assert((header->sh_addralign == 0 && header->sh_type == SHT_NULL) ||
+               ((header->sh_offset % header->sh_addralign) == 0));
     }
 
     void set_name(std::string s) { name = s; }
 
-    std::string get_name() const { return name; }
-    SectionType get_type() const { return type; }
-    u64 get_addr() const { return addr; }
-    u64 get_offset() const { return offset; }
-    u64 get_size() const { return size; }
-    u64 get_entry_size() const { return entry_size; }
-    u64 get_align() const { return align; }
-    std::vector<u8> get_raw() const { return raw; }
+    std::string get_name() const {
+        assert(name != std::nullopt);
+        return name.value();
+    }
+    u8 *get_raw() const { return raw; }
+    Elf64_Shdr *get_header() const { return header; }
 
   private:
-    std::string name;
-    const SectionType type;
-    const u64 addr;
-    const u64 offset;
-    const u64 size;
-    // now only used for .symtab
-    const u64 entry_size;
-    const u64 align;
-    const std::vector<u8> raw;
+    std::optional<std::string> name;
+    // section header
+    Elf64_Shdr *header;
+    // content of the section
+    u8 *raw;
 };
 
 class Elf {
   public:
     // create from raw data
-    Elf(std::vector<u8> raw) : raw(raw) {
+    Elf(u8 *raw) : raw(raw) {
         fmt::print("parsing elf header\n");
         // get elf header
         eheader = (Elf64_Ehdr *)&(raw[0]);
@@ -130,43 +110,38 @@ class Elf {
         }
 
         // get section header
+        std::vector<Elf64_Shdr *> section_headers;
         fmt::print("parsing section header\n");
         for (int i = 0; i < get_section_num(); i++) {
             u64 sheader_elem_offset = eheader->e_shoff + eheader->e_shentsize * i;
-            sheader.push_back((Elf64_Shdr *)&(raw[sheader_elem_offset]));
+            section_headers.push_back((Elf64_Shdr *)&(raw[sheader_elem_offset]));
         }
 
         // get section data
         fmt::print("parsing elf body\n");
         for (int i = 0; i < get_section_num(); i++) {
             fmt::print("parsing sections[{}]\n", i);
-            SectionType type = (SectionType)sheader[i]->sh_type;
-            u64 addr = sheader[i]->sh_addr;
-            u64 offset = sheader[i]->sh_offset;
-            u64 size = sheader[i]->sh_size;
-            u64 entry_size = sheader[i]->sh_entsize;
-            u64 align = sheader[i]->sh_addralign;
-            std::vector<u8> raw_data = get_raw(offset, size);
+            Elf64_Shdr *section_header = section_headers[i];
+            u8 *section_raw = get_raw(section_header->sh_offset, section_header->sh_size);
 
             // found symbol table
-            if (type == SectionType::SymTab) {
-                u64 symbol_num = size / entry_size;
-                fmt::print("found symbol table (symbol num={})\n", symbol_num);
-                sym_table = std::make_optional<SymTable>(SymTable(symbol_num, entry_size, raw_data));
+            if (section_header->sh_type == SHT_SYMTAB) {
+                u64 symbol_num = section_header->sh_size / section_header->sh_entsize;
+                fmt::print("found symbol table section (symbol num = {})\n", symbol_num);
+                sym_table = std::make_optional<SymTable>(SymTable(symbol_num, section_header->sh_entsize, section_raw));
             }
 
-            std::shared_ptr<Section> section =
-                std::make_shared<Section>(Section(type, addr, offset, size, entry_size, align, raw_data));
+            std::shared_ptr<Section> section = std::make_shared<Section>(Section(section_header, section_raw));
             sections.push_back(section);
         }
         // checks if parser found symbol table
         assert(sym_table != std::nullopt);
 
         // get section name from last section (=.shstrtab)
-        std::vector<u8> shstrtab_raw = sections[get_section_num() - 1]->get_raw();
+        u8 *shstrtab_raw = sections[get_section_num() - 1]->get_raw();
         for (int i = 0; i < get_section_num(); i++) {
-            u64 name_index = sheader[i]->sh_name;
-            // FIXME: better handling
+            u64 name_index = section_headers[i]->sh_name;
+            // FIXME: とりあえず20
             std::string name(&shstrtab_raw[name_index], &shstrtab_raw[name_index + 20]);
             // debug print
             // fmt::print("find section named {}\n", name.c_str());
@@ -191,6 +166,7 @@ class Elf {
             assert(strtab != nullptr);
             auto name_index = (*entries)[i].get_sym()->st_name;
             // fmt::print("name_index : 0x{:x}\n", name_index);
+            // FIXME: とりあえず20
             std::string symbol_name =
                 std::string(&(strtab->get_raw()[name_index]), &(strtab->get_raw()[name_index + 20])).c_str();
             (*entries)[i].set_name(symbol_name);
@@ -205,11 +181,7 @@ class Elf {
         return true;
     }
 
-    std::vector<u8> get_raw(u64 offset, u64 size) {
-        std::vector sub(&raw[offset], &raw[offset + size]);
-        assert(sub.size() == size);
-        return sub;
-    }
+    u8 *get_raw(u64 offset, u64 size) { return &raw[offset]; }
 
     u64 get_section_num() { return eheader->e_shnum; }
 
@@ -227,24 +199,16 @@ class Elf {
         // dump elf header
         fmt::print("ELF type: {}, ", eheader->e_type);
         fmt::print("version: {}\n", eheader->e_version);
-        /*
-        // section header
-        for (int i = 0; i < eheader->e_shnum; i++) {
-            fmt::print("section[{}]:\n", i);
-            fmt::print("  name : {}\n", sheader[i]->sh_type);
-            fmt::print("  size : {}\n", sheader[i]->sh_size);
-        }
-        */
 
         // dump sections
         for (int i = 0; i < sections.size(); i++) {
             std::shared_ptr<Section> section = sections[i];
             fmt::print("section[{}] :\n  ", i);
             fmt::print("name: \"{}\", ", sections[i]->get_name());
-            fmt::print("size: 0x{:x}, ", sections[i]->get_size());
-            fmt::print("entsize: 0x{:x}, ", sections[i]->get_entry_size());
-            fmt::print("offset: 0x{:x}, ", sections[i]->get_offset());
-            fmt::print("align: 0x{:x}\n", sections[i]->get_align());
+            fmt::print("size: 0x{:x}, ", sections[i]->get_header()->sh_size);
+            fmt::print("entsize: 0x{:x}, ", sections[i]->get_header()->sh_entsize);
+            fmt::print("offset: 0x{:x}, ", sections[i]->get_header()->sh_offset);
+            fmt::print("align: 0x{:x}\n", sections[i]->get_header()->sh_addralign);
         }
 
         // dump symbol table
@@ -258,13 +222,11 @@ class Elf {
     }
 
   private:
-    const std::vector<u8> raw;
+    u8 *raw;
     // elf header
     Elf64_Ehdr *eheader;
     // program header
     std::vector<Elf64_Phdr *> pheader;
-    // section header
-    std::vector<Elf64_Shdr *> sheader;
     // sections
     std::vector<std::shared_ptr<Section>> sections;
 

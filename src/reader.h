@@ -19,7 +19,8 @@ class Reader {
             std::exit(1);
         }
         std::vector<u8> raw = std::vector<u8>(std::istreambuf_iterator<char>(file), {});
-        elf = std::make_shared<Parsed::Elf>(Parsed::Elf(raw));
+        // TODO: vectorにする必要ない
+        elf = std::make_shared<Parsed::Elf>(Parsed::Elf(&raw[0]));
     }
 
     std::string get_filename() { return filename; }

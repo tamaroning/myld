@@ -61,29 +61,48 @@ class SymTable {
     std::shared_ptr<std::vector<SymTableEntry>> entries;
 };
 
+class RelaTextEntry {
+  public:
+    RelaTextEntry(Elf64_Rela *raw) : name(std::nullopt), rela(raw) {}
+
+    void set_name(std::string s) { name = s; }
+
+    std::string get_name() const {
+        assert(name != std::nullopt);
+        return name.value();
+    }
+
+    Elf64_Rela *get_rela() const { return rela; }
+
+  private:
+    std::optional<std::string> name;
+    Elf64_Rela *rela;
+};
+
 class RelaText {
   public:
-    RelaText(Elf64_Shdr *sheader, u8 *raw) : sheader(sheader), entries({}) {
+    RelaText(Elf64_Shdr *sheader, u8 *raw)
+        : sheader(sheader), entries(std::make_shared<std::vector<RelaTextEntry>>(std::vector<RelaTextEntry>({}))) {
         assert(sheader->sh_entsize == sizeof(Elf64_Rela));
         reloc_num = sheader->sh_size / sheader->sh_entsize;
         fmt::print("found .rela.text section (relocation num = {})\n", reloc_num);
 
         for (int i = 0; i < reloc_num; i++) {
             u32 start = i * sizeof(Elf64_Rela);
-            entries.push_back((Elf64_Rela *)&raw[start]);
+            entries->push_back(RelaTextEntry((Elf64_Rela *)&raw[start]));
         }
     }
 
     Elf64_Shdr *get_sheader() const { return sheader; }
     u64 get_reloc_num() const { return reloc_num; }
-    std::vector<Elf64_Rela *> get_entries() const { return entries; }
+    std::shared_ptr<std::vector<RelaTextEntry>> get_entries() const { return entries; }
 
   private:
     // section header of .rela.text
     Elf64_Shdr *sheader;
     // number of relocations
     u64 reloc_num;
-    std::vector<Elf64_Rela *> entries;
+    std::shared_ptr<std::vector<RelaTextEntry>> entries;
 };
 
 // struct represents a section. this contains section header
@@ -161,32 +180,42 @@ class Elf {
             u64 name_index = section_headers[i]->sh_name;
             // FIXME: とりあえず20
             std::string name(&shstrtab_raw[name_index], &shstrtab_raw[name_index + 20]);
-            // debug print
-            // fmt::print("find section named {}\n", name.c_str());
             sections[i]->set_name(name.c_str());
         }
 
         // make sure elf contains .symtab, .strtab, and .shstrtab
-        assert(get_section_by_name(".symtab") != nullptr);
+        assert(get_section_by_name(".symtab") != nullptr && sym_table.has_value());
         assert(get_section_by_name(".strtab") != nullptr);
         assert(get_section_by_name(".shstrtab") != nullptr);
+        // make sure .rela.text is parsed correctly
+        assert((get_section_by_name(".rela.text") == nullptr && !rela_text.has_value()) ||
+               (get_section_by_name(".rela.text") != nullptr && rela_text.has_value()));
 
-        fmt::print("resolving symbol names\n");
-        // auto symtab = get_section_by_name(".symtab");
-        // auto symtab_r = symtab->get_raw();
-        //  fmt::print(".symtab: {:2x}{:2x}{:2x}{:2x}{:2x}{:2x}{:2x}{:2x}\n", symtab_r[0], symtab_r[1], symtab_r[2],
-        //             symtab_r[3], symtab_r[4], symtab_r[5], symtab_r[6], symtab_r[7]);
-        // set name for each sym_table entry
+        fmt::print("looking up symbol names\n");
+
+        // lookup name of each symbol table entry
+        auto strtab = get_section_by_name(".strtab");
+        auto symtab_entries = sym_table->get_entries();
         for (int i = 0; i < sym_table->get_symbol_num(); i++) {
-            // fmt::print("symbol[{}]\n", i);
-            auto symtab_entries = sym_table->get_entries();
-            auto strtab = get_section_by_name(".strtab");
             auto name_index = (*symtab_entries)[i].get_sym()->st_name;
-            // fmt::print("name_index : 0x{:x}\n", name_index);
             // FIXME: とりあえず20
             std::string symbol_name =
                 std::string(&(strtab->get_raw()[name_index]), &(strtab->get_raw()[name_index + 20])).c_str();
             (*symtab_entries)[i].set_name(symbol_name);
+        }
+
+        // lookup name of each rela entry
+        if (rela_text.has_value()) {
+            auto symtab = get_section_by_name(".symtab");
+            auto rela_entries = rela_text->get_entries();
+            for (int i = 0; i < rela_text->get_reloc_num(); i++) {
+                // FIXME: これってほんとにsymbol table entryのインデックスを表してるの?
+                auto symbol_index = ELF64_R_SYM((*rela_entries)[i].get_rela()->r_info);
+                // FIXME: とりあえず20
+                std::string symbol_name = (*sym_table->get_entries())[symbol_index].get_name();
+                // std::string(&(symtab->get_raw()[name_index]), &(symtab->get_raw()[name_index + 20])).c_str();
+                (*rela_entries)[i].set_name(symbol_name);
+            }
         }
     }
 
@@ -238,12 +267,17 @@ class Elf {
         }
 
         // dump relocation table (.rela.text)
-        auto reloc_entries = rela_text->get_entries();
-        for (int i = 0; i < rela_text->get_reloc_num(); i++) {
-            fmt::print("rela[{}]:\n  ", i);
-            fmt::print("name : \"{}\", ", reloc_entries[i]->r_offset);
-            fmt::print("info : 0x{:x}, ", reloc_entries[i]->r_info);
-            fmt::print("addend : {}\n", reloc_entries[i]->r_addend);
+        if (rela_text.has_value()) {
+            auto rela_entries = rela_text->get_entries();
+            for (int i = 0; i < rela_text->get_reloc_num(); i++) {
+                fmt::print("rela[{}]:\n  ", i);
+                fmt::print("name : \"{}\", ", (*rela_entries)[i].get_name());
+                fmt::print("offset : \"{}\", ", (*rela_entries)[i].get_rela()->r_offset);
+                fmt::print("info : 0x{:x}, ", (*rela_entries)[i].get_rela()->r_info);
+                fmt::print("addend : {}\n  ", (*rela_entries)[i].get_rela()->r_addend);
+                fmt::print("sym(in info) : 0x{:x}, ", ELF64_R_SYM((*rela_entries)[i].get_rela()->r_info));
+                fmt::print("type(in info) : 0x{:x}, \n", ELF64_R_TYPE((*rela_entries)[i].get_rela()->r_info));
+            }
         }
     }
 

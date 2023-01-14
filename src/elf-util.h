@@ -1,7 +1,8 @@
-#include "myld.h"
-#include <elf.h>
-#include <cassert>
 #include "debug.h"
+#include "myld.h"
+#include <cassert>
+#include <elf.h>
+#include <memory>
 
 namespace Myld {
 namespace Utils {
@@ -43,12 +44,9 @@ static Elf64_Ehdr create_dummy_eheader() {
 }
 
 static void finalize_eheader(Elf64_Ehdr *eheader, Elf64_Addr entry_point_addr, u64 pheader_entry_num,
-                             u64 sheader_entry_num, u64 all_sections_size_sum) {
+                             u64 sheader_entry_num, u64 sheader_start_offset) {
     Elf64_Off pheader_offset = (pheader_entry_num == 0) ? 0 : sizeof(Elf64_Ehdr);
-    Elf64_Off sheader_offset =
-        (pheader_entry_num == 0)
-            ? 0
-            : (sizeof(Elf64_Ehdr) + pheader_entry_num * sizeof(Elf64_Phdr) + all_sections_size_sum);
+    Elf64_Off sheader_offset = (pheader_entry_num == 0) ? 0 : sheader_start_offset;
 
     Elf64_Half shstrtab_index = (sheader_entry_num == 0) ? 0 : sheader_entry_num - 1;
 
@@ -80,7 +78,7 @@ static void finalize_pheader_load(Elf64_Phdr *pheader, u64 text_offset, u64 text
     pheader->p_memsz = text_size;
 }
 
-static Elf64_Phdr create_dummy_sheader() {
+static Elf64_Phdr create_dummy_pheader() {
     Elf64_Phdr program_header_entry_load = Elf64_Phdr{
         .p_type = PT_LOAD,
         .p_flags = PF_R | PF_X,
@@ -94,8 +92,8 @@ static Elf64_Phdr create_dummy_sheader() {
     return program_header_entry_load;
 }
 
-static Elf64_Shdr create_sheader_null() {
-    Elf64_Shdr section_header_entry_null = Elf64_Shdr{
+static std::shared_ptr<Elf64_Shdr> create_sheader_null() {
+    return std::make_shared<Elf64_Shdr>(Elf64_Shdr{
         .sh_name = 0,
         .sh_type = SHT_NULL,
         .sh_flags = 0,
@@ -106,13 +104,12 @@ static Elf64_Shdr create_sheader_null() {
         .sh_info = 0,
         .sh_addralign = 0,
         .sh_entsize = 0,
-    };
-    return section_header_entry_null;
+    });
 }
 
-static Elf64_Shdr create_dummy_sheader_text(Elf64_Xword align) {
-    Elf64_Shdr section_header_entry_text = Elf64_Shdr{
-        .sh_name = DUMMY,
+static std::shared_ptr<Elf64_Shdr> create_dummy_sheader_text(u32 name_index, Elf64_Xword align) {
+    return std::make_shared<Elf64_Shdr>(Elf64_Shdr{
+        .sh_name = name_index,
         .sh_type = SHT_PROGBITS,
         .sh_flags = SHF_ALLOC | SHF_EXECINSTR,
         .sh_addr = 0, // TODO:
@@ -122,20 +119,17 @@ static Elf64_Shdr create_dummy_sheader_text(Elf64_Xword align) {
         .sh_info = 0,
         .sh_addralign = align,
         .sh_entsize = 0,
-    };
-    return section_header_entry_text;
+    });
 }
 
-static void finalize_sheader_text(Elf64_Shdr *sheader, Elf64_Word name_index, Elf64_Off offset, Elf64_Xword size) {
-    sheader->sh_name = name_index;
+static void finalize_sheader(std::shared_ptr<Elf64_Shdr> sheader, Elf64_Off offset) {
     sheader->sh_offset = offset;
-    sheader->sh_size = size;
     assert((sheader->sh_offset % sheader->sh_addralign) == 0);
 }
 
-static Elf64_Shdr create_dummy_sheader_strtab(u64 align) {
-    Elf64_Shdr sheader = Elf64_Shdr{
-        .sh_name = DUMMY,
+static std::shared_ptr<Elf64_Shdr> create_dummy_sheader_strtab(u32 name_index, u64 align) {
+    return std::make_shared<Elf64_Shdr>(Elf64_Shdr{
+        .sh_name = name_index,
         .sh_type = SHT_STRTAB,
         .sh_flags = 0,
         .sh_addr = 0,
@@ -145,15 +139,7 @@ static Elf64_Shdr create_dummy_sheader_strtab(u64 align) {
         .sh_info = 0,
         .sh_addralign = align,
         .sh_entsize = 0,
-    };
-    return sheader;
-}
-
-static void finalize_sheader_strtab(Elf64_Shdr *sheader, Elf64_Word name_index, Elf64_Off offset, Elf64_Xword size) {
-    sheader->sh_name = name_index;
-    sheader->sh_offset = offset;
-    sheader->sh_size = size;
-    debug_assert((sheader->sh_offset % sheader->sh_addralign) == 0);
+    });
 }
 
 } // namespace Utils

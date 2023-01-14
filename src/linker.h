@@ -111,6 +111,12 @@ class Linker {
             std::vector<u8>(&(obj_text_section->get_raw()[0]), &(obj_text_section->get_raw()[obj_text_size])));
         sections.push_back(text_section);
 
+        fmt::print("creating .symtab section\n");
+        Section symtab_section = Section(Utils::create_dummy_sheader_symtab(1, 8));
+        std::vector<u8> symtab_raw = {};
+        symtab_section.set_raw(symtab_raw);
+        sections.push_back(symtab_section);
+
         // .strtab
         fmt::print("creating .strtab section\n");
         Section strtab_section = Section(Utils::create_dummy_sheader_strtab(9, 0x1));

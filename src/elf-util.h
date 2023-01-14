@@ -26,7 +26,7 @@ static Elf64_Ehdr create_dummy_eheader() {
         // 8 byte
         .e_shoff = DUMMY,
         // 4 byte
-        .e_flags = 0x0, // TODO:
+        .e_flags = 0x0, // TODO: ここ何？
         // 2 byte
         .e_ehsize = sizeof(Elf64_Ehdr),
         // 2 byte
@@ -125,6 +125,22 @@ static std::shared_ptr<Elf64_Shdr> create_dummy_sheader_strtab(u32 name_index, u
         .sh_info = 0,
         .sh_addralign = align,
         .sh_entsize = 0,
+    });
+}
+
+static std::shared_ptr<Elf64_Shdr> create_dummy_sheader_symtab(u32 name_index, Elf64_Xword align) {
+    // TODO: linkとinfo
+    return std::make_shared<Elf64_Shdr>(Elf64_Shdr{
+        .sh_name = name_index,
+        .sh_type = SHT_SYMTAB,
+        .sh_flags = 0,
+        .sh_addr = 0,
+        .sh_offset = DUMMY,
+        .sh_size = DUMMY,
+        .sh_link = 0, // TODO: .strtabのsheader index
+        .sh_info = 0, // TODO: 最後のローカルシンボルのindex + 1
+        .sh_addralign = align,
+        .sh_entsize = sizeof(Elf64_Sym),
     });
 }
 

@@ -40,9 +40,7 @@ int main(int argc, char *argv[]) {
     Myld::Elf::Reader reader(obj_filename);
     reader.dump();
 
-    std::shared_ptr<Myld::Parse::Elf> obj(reader.get_elf());
-
-    Myld::Linker linker = Myld::Linker(obj);
+    Myld::Linker linker = Myld::Linker(reader.get_elf());
     linker.link();
     linker.output(output_filename);
 

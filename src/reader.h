@@ -1,5 +1,5 @@
-#include "parse-elf.h"
 #include "myld.h"
+#include "parse-elf.h"
 #include <cassert>
 #include <elf.h>
 #include <fmt/core.h>

@@ -29,6 +29,12 @@ class SymTableEntry {
 
     Elf64_Sym *get_sym() const { return sym; }
 
+    u8 get_bind() const { return ELF64_ST_BIND(sym->st_info); }
+
+    u8 get_type() const { return ELF64_ST_TYPE(sym->st_info); }
+
+    void set_value(u64 value) { sym->st_value = value; }
+
   private:
     std::optional<std::string> name;
     Elf64_Sym *sym;
@@ -132,6 +138,14 @@ class Section {
     u8 *get_raw() const { return raw; }
     Elf64_Shdr *get_header() const { return header; }
 
+    void embed_raw_i32(u32 offset, i32 value) {
+        // little endian
+        raw[offset + 0] = (value >> 0) & 0xff;
+        raw[offset + 1] = (value >> 8) & 0xff;
+        raw[offset + 2] = (value >> 16) & 0xff;
+        raw[offset + 3] = (value >> 24) & 0xff;
+    }
+
   private:
     std::optional<std::string> name;
     // section header
@@ -184,8 +198,8 @@ class Elf {
         // checks if parser found symbol table
         assert(sym_table != std::nullopt);
 
-        // get section name from last section (=.shstrtab)
-        u8 *shstrtab_raw = sections[get_section_num() - 1]->get_raw();
+        // get section name from .shstrtab
+        u8 *shstrtab_raw = sections[eheader->e_shstrndx]->get_raw();
         for (int i = 0; i < get_section_num(); i++) {
             u64 name_index = section_headers[i]->sh_name;
             // FIXME: とりあえず20
@@ -246,7 +260,7 @@ class Elf {
     std::shared_ptr<Section> get_section_by_name(std::string name) {
         for (auto section : sections) {
             if (section->get_name() == name)
-                return section;
+                return std::shared_ptr<Section>(section);
         }
         return nullptr;
     }

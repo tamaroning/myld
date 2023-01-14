@@ -90,33 +90,70 @@ class Linker {
     }
 
     void link() {
-        // extract object file info
-        auto obj_text_section = obj->get_section_by_name(".text");
-        assert(obj_text_section != nullptr);
-        auto obj_text_size = obj_text_section->get_header()->sh_size;
+        // resolve symbols
+        // f : 0x0->0x80000
+        // _start: 0x18 -> 0x80018
+        /*
+        for (auto sym_entry : obj->get_sym_table().value().get_entries()) {
+            std::string sym_name = sym_entry->get_name();
+            u8 sym_type = sym_entry->get_type();
+            u64 sym_current_value = sym_entry->get_sym()->st_value;
+            switch (sym_type) {
+            case STT_NOTYPE: {
+                // TODO:
+            } break;
+            case STT_FILE: {
+                // TODO:
+            } break;
+            case STT_FUNC: {
+                u64 resolved_addr = sym_current_value + config.get_text_load_addr();
+                sym_entry->set_value(resolved_addr);
+                if (sym_name == "_start") {
+                    _start_addr = resolved_addr;
+                }
+            } break;
+            default: {
+                fmt::print("Not implemented: symbol type = 0x{:x}\n", sym_type);
+                exit(1);
+            } break;
+            }
+        }
 
+        // resolve rela
         if (obj->get_rela_text().has_value()) {
             Parse::RelaText rela_text = obj->get_rela_text().value();
             for (auto rela_entry : rela_text.get_entries()) {
-                fmt::print("resolving rela: \"{}\"\n", rela_entry->get_name());
-                 fmt::print("rela sym = 0x{:x}\n", rela_entry->get_sym());
-                 fmt::print("rela type = 0x{:x}\n", rela_entry->get_type());
-                switch (rela_entry->get_type()) {
-                case R_X86_64_PLT32:
+                std::string rela_name = rela_entry->get_name();
+                u32 rela_type = rela_entry->get_type();
+                u64 rela_offset = rela_entry->get_rela()->r_offset;
+
+                fmt::print("resolving rela: \"{}\"\n", rela_name);
+                fmt::print("  rela type = 0x{:x}\n", rela_type);
+                switch (rela_type) {
+                case R_X86_64_PLT32: {
                     fmt::print("found relocation R_X86_64_PLT32\n");
                     // PLT32という名前だがpc relativeとして計算 (St_valu    e + Addend - P) P:
                     // 再配置されるメモリ位置のアドレス ref:
                     // https://stackoverflow.com/questions/64424692/how-does-the-address-of-r-x86-64-plt32-computed
                     // TODO:
-                    // (sym->st_value) - (Addend) + (0x80000 + rela->r_offset)
-                    break;
-                default:
-                    fmt::print("Not implemented: rela type = 0x{:x}\n", rela_entry->get_type());
-                    //exit(1);
-                    break;
+                    // (sym->st_value) + (Addend) - (0x80000 + rela->r_offset)
+                    std::shared_ptr<Parse::SymTableEntry> symbol = obj->get_sym_table()->get_symbol_by_name(rela_name);
+                    assert(symbol != nullptr);
+                    i32 resolved_rel32 = symbol->get_sym()->st_value + rela_entry->get_rela()->r_addend -
+                                         (config.get_text_load_addr() + rela_entry->get_rela()->r_offset);
+
+                    fmt::print("  resolved rel32= {}\n", resolved_rel32);
+                    // FIXME:
+                    // obj->get_section_by_name(".text")->embed_raw_i32(rela_offset, resolved_rel32);
+                } break;
+                default: {
+                    fmt::print("  Not implemented: rela type = 0x{:x}\n", rela_type);
+                    exit(1);
+                } break;
                 }
             }
         }
+        */
 
         // --------------- build elf ---------------
         // elf header
@@ -131,28 +168,36 @@ class Linker {
         // .text
         fmt::print("creating .text section\n");
         Section text_section = Section(Utils::create_dummy_sheader_text(27, 0x1));
-        fmt::print("type {:x}\n", text_section.sheader->sh_type);
-        fmt::print("size {:x}\n", text_section.sheader->sh_size);
-        fmt::print("offset {:x}\n", text_section.sheader->sh_offset);
-
-        // とりあえずobjの.textをexecutableの.textとする
-        text_section.set_raw(
-            std::vector<u8>(&(obj_text_section->get_raw()[0]), &(obj_text_section->get_raw()[obj_text_size])));
+        // NOTE: relocationはobjのSectionでin-placeに行うので、このタイミングでrawを取る
+        std::shared_ptr<Parse::Section> obj_text_section = obj->get_section_by_name(".text");
+        u64 obj_text_section_size = obj_text_section->get_header()->sh_size;
+        text_section.set_raw(std::vector<u8>((u8 *)&(obj_text_section->get_raw()[0]),
+                                             (u8 *)&(obj_text_section->get_raw()[obj_text_section_size])));
         sections.push_back(text_section);
 
         // .symtab
         fmt::print("creating .symtab section\n");
         Section symtab_section = Section(Utils::create_dummy_sheader_symtab(1, 8));
-        // TODO: content
-        std::vector<u8> symtab_raw = {};
-        symtab_section.set_raw(symtab_raw);
+        // NOTE: relocationはobjのSectionでin-placeに行うので、このタイミングでrawを取る
+        std::shared_ptr<Parse::Section> obj_symtab_section = obj->get_section_by_name(".symtab");
+        u64 obj_symtab_section_size = obj_symtab_section->get_header()->sh_size;
+        symtab_section.set_raw(std::vector<u8>((u8 *)&(obj_symtab_section->get_raw()[0]),
+                                               (u8 *)&(obj_symtab_section->get_raw()[obj_symtab_section_size])));
+        //fmt::print("M{}\n", obj->get_section_by_name(".strtab")->get_header()->sh_size);
+        //fmt::print("M{}\n", obj->get_section_by_name(".strtab")->get_header()->sh_type);
         sections.push_back(symtab_section);
+        //fmt::print("N{}\n", obj->get_section_by_name(".strtab")->get_header()->sh_size);
+        //fmt::print("N{}\n", obj->get_section_by_name(".strtab")->get_header()->sh_type);
 
         // .strtab
         fmt::print("creating .strtab section\n");
-        Section strtab_section = Section(Utils::create_dummy_sheader_strtab(9, 0x1));
-        std::vector<u8> strtab_raw = {'\0'};
-        strtab_section.set_raw(strtab_raw);
+        Section strtab_section = Section(Utils::create_dummy_sheader_strtab(9, 1));
+        // NOTE: relocationはobjのSectionでin-placeに行うので、このタイミングでrawを取る
+        std::shared_ptr<Parse::Section> obj_strtab_section = obj->get_section_by_name(".strtab");
+        u64 obj_strtab_section_size = obj_strtab_section->get_header()->sh_size;
+        fmt::print(".strtab size = 0x{:x}\n", obj_strtab_section_size);
+        strtab_section.set_raw(std::vector<u8>((u8 *)&(obj_strtab_section->get_raw()[0]),
+                                               (u8 *)&(obj_strtab_section->get_raw()[obj_strtab_section_size])));
         sections.push_back(strtab_section);
 
         // .shstrtab
@@ -207,7 +252,7 @@ class Linker {
         u64 sheader_start_offset = first_section_start_offset + dist_from_sections_start_to_sections_end;
         fmt::print("start of section header: 0x{:x} = {}\n", sheader_start_offset, sheader_start_offset);
         // TODO: .text内の_startのオフセット + 0x8000とする
-        Utils::finalize_eheader(&eheader, config.get_text_load_addr(), 1, sections.size(), sheader_start_offset);
+        Utils::finalize_eheader(&eheader, _start_addr, 1, sections.size(), sheader_start_offset);
         // とりあえず、.textセクションのみロードする
         fmt::print("finalize program header\n");
         Utils::finalize_pheader_load(&pheader, text_section.sheader->sh_offset, text_section.sheader->sh_size);
@@ -224,6 +269,9 @@ class Linker {
     std::vector<Section> sections;
 
     u64 padding_after_pheader;
+
+    // 解決した_startのアドレス
+    u64 _start_addr;
 };
 
 } // namespace Myld

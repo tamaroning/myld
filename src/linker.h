@@ -10,7 +10,6 @@ namespace Myld {
 class Config {
   public:
     Config() {}
-    u64 entry_addr;
 };
 
 class Section {
@@ -95,7 +94,7 @@ class Linker {
 
         // .text
         fmt::print("creating .text section\n");
-        Section text_section = Section(Utils::create_dummy_sheader_text(19, 0x1));
+        Section text_section = Section(Utils::create_dummy_sheader_text(27, 0x1));
         fmt::print("type {:x}\n", text_section.sheader->sh_type);
         fmt::print("size {:x}\n", text_section.sheader->sh_size);
         fmt::print("offset {:x}\n", text_section.sheader->sh_offset);
@@ -110,17 +109,20 @@ class Linker {
 
         // .strtab
         fmt::print("creating .strtab section\n");
-        Section strtab_section = Section(Utils::create_dummy_sheader_strtab(1, 0x1));
+        Section strtab_section = Section(Utils::create_dummy_sheader_strtab(9, 0x1));
         std::vector<u8> strtab_raw = {'\0'};
         strtab_section.set_raw(strtab_raw);
         sections.push_back(strtab_section);
 
         // .shstrtab
         fmt::print("creating .shstrtab section\n");
-        Section shstrtab_section = Section(Utils::create_dummy_sheader_strtab(9, 0x1));
+        Section shstrtab_section = Section(Utils::create_dummy_sheader_strtab(17, 0x1));
         std::vector<u8> shstrtab_raw = {
-            '\0', '.', 's', 't', 'r', 't',  'a', 'b', '\0', '.', 's', 'h',  's',
-            't',  'r', 't', 'a', 'b', '\0', '.', 't', 'e',  'x', 't', '\0',
+            '\0',                                                 // null
+            '.',  's', 'y', 'm', 't', 'a',  'b', '\0',            // .symtab
+            '.',  's', 't', 'r', 't', 'a',  'b', '\0',            //.strtab
+            '.',  's', 'h', 's', 't', 'r',  't', 'a',  'b', '\0', //.shstrtab
+            '.',  't', 'e', 'x', 't', '\0',                       // .text
         };
         shstrtab_section.set_raw(shstrtab_raw);
         sections.push_back(shstrtab_section);
@@ -153,7 +155,7 @@ class Linker {
             section_start_offset += padding_size + sections[i].sheader->sh_size;
         }
 
-        // calulate range from first section start to last section end
+        // calulate distance from first section start to last section end
         u64 dist_from_sections_start_to_sections_end = 0;
         for (int i = 0; i < sections.size(); i++) {
             dist_from_sections_start_to_sections_end += sections[i].get_padding_size();

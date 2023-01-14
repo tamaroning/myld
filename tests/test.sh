@@ -30,7 +30,7 @@ actual=$?
 expected=0
 
 if [ $actual -eq $expected ]; then
-    echo "."
+    echo "ok"
 else
     echo "expected $expected, but got $actual"
 fi

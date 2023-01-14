@@ -7,6 +7,14 @@
 
 namespace Myld {
 
+static void embed_raw_i32(std::vector<u8> &raw, u64 offset, i32 value) {
+    // little endian
+    raw[offset + 0] = (value >> 0) & 0xff;
+    raw[offset + 1] = (value >> 8) & 0xff;
+    raw[offset + 2] = (value >> 16) & 0xff;
+    raw[offset + 3] = (value >> 24) & 0xff;
+}
+
 class Config {
   public:
     Config() : text_load_addr(0x80000) {}
@@ -100,6 +108,15 @@ class Linker {
     }
 
     void link() {
+        std::shared_ptr<Parse::Section> obj_text_section = obj->get_section_by_name(".text");
+        std::vector<u8> text_raw = obj_text_section->get_raw().to_vec();
+
+        std::shared_ptr<Parse::Section> obj_symtab_section = obj->get_section_by_name(".symtab");
+        std::vector<u8> symtab_raw = obj_symtab_section->get_raw().to_vec();
+
+        std::shared_ptr<Parse::Section> obj_strtab_section = obj->get_section_by_name(".strtab");
+        std::vector<u8> strtab_raw = obj_strtab_section->get_raw().to_vec();
+
         // resolve symbols
         // f : 0x0->0x80000
         // _start: 0x18 -> 0x80018
@@ -128,7 +145,6 @@ class Linker {
             }
         }
 
-        /*
         // resolve rela
         if (obj->get_rela_text().has_value()) {
             Parse::RelaText rela_text = obj->get_rela_text().value();
@@ -154,7 +170,7 @@ class Linker {
 
                     fmt::print("  resolved rel32= {}\n", resolved_rel32);
                     // FIXME:
-                    // obj->get_section_by_name(".text")->embed_raw_i32(rela_offset, resolved_rel32);
+                    embed_raw_i32(text_raw, rela_offset, resolved_rel32);
                 } break;
                 default: {
                     fmt::print("  Not implemented: rela type = 0x{:x}\n", rela_type);
@@ -163,7 +179,6 @@ class Linker {
                 }
             }
         }
-        */
 
         // --------------- build elf ---------------
         // elf header
@@ -179,33 +194,20 @@ class Linker {
         fmt::print("creating .text section\n");
         Section text_section = Section(Utils::create_dummy_sheader_text(27, 0x1));
         // NOTE: relocationはobjのSectionでin-placeに行うので、このタイミングでrawを取る
-        std::shared_ptr<Parse::Section> obj_text_section = obj->get_section_by_name(".text");
-        u64 obj_text_section_size = obj_text_section->get_header()->sh_size;
-        text_section.set_raw(std::vector<u8>((u8 *)obj_text_section->get_raw().to_pointer(),
-                                             (u8 *)(obj_text_section->get_raw().to_pointer() + obj_text_section_size)));
+        text_section.set_raw(text_raw);
         sections.push_back(text_section);
 
         // .symtab
         fmt::print("creating .symtab section\n");
         Section symtab_section = Section(Utils::create_dummy_sheader_symtab(1, 8));
-        // NOTE: relocationはobjのSectionでin-placeに行うので、このタイミングでrawを取る
-        std::shared_ptr<Parse::Section> obj_symtab_section = obj->get_section_by_name(".symtab");
-        u64 obj_symtab_section_size = obj_symtab_section->get_header()->sh_size;
-        symtab_section.set_raw(
-            std::vector<u8>((u8 *)obj_symtab_section->get_raw().to_pointer(),
-                            (u8 *)(obj_symtab_section->get_raw().to_pointer() + obj_symtab_section_size)));
+        symtab_section.set_raw(std::vector<u8>(symtab_raw));
         sections.push_back(symtab_section);
 
         // .strtab
         fmt::print("creating .strtab section\n");
         Section strtab_section = Section(Utils::create_dummy_sheader_strtab(9, 1));
-        // NOTE: relocationはobjのSectionでin-placeに行うので、このタイミングでrawを取る
-        std::shared_ptr<Parse::Section> obj_strtab_section = obj->get_section_by_name(".strtab");
-        u64 obj_strtab_section_size = obj_strtab_section->get_header()->sh_size;
-        fmt::print(".strtab size = 0x{:x}\n", obj_strtab_section_size);
-        strtab_section.set_raw(
-            std::vector<u8>((u8 *)obj_strtab_section->get_raw().to_pointer(),
-                            (u8 *)(obj_strtab_section->get_raw().to_pointer() + obj_strtab_section_size)));
+        fmt::print(".strtab size = 0x{:x}\n", strtab_raw.size());
+        strtab_section.set_raw(strtab_raw);
         sections.push_back(strtab_section);
 
         // .shstrtab

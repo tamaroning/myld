@@ -26,6 +26,15 @@ class Raw {
 
     u8 *to_pointer() const { return (u8 *)&(*raw)[offset]; }
 
+    std::vector<u8> to_vec() {
+        std::vector<u8> v1;
+        v1.reserve(size);
+        for (u64 u = 0; u < size; u++) {
+            v1.push_back((*raw)[offset + u]);
+        }
+        return v1;
+    }
+
   private:
     Raw(std::shared_ptr<const std::vector<u8>> raw, u64 offset, u64 size) : raw(raw), offset(offset), size(size) {}
 
@@ -158,16 +167,6 @@ class Section {
     }
     Raw get_raw() const { return raw; }
     Elf64_Shdr *get_header() const { return header; }
-
-    /*
-    void embed_raw_i32(u32 offset, i32 value) {
-        // little endian
-        raw[offset + 0] = (value >> 0) & 0xff;
-        raw[offset + 1] = (value >> 8) & 0xff;
-        raw[offset + 2] = (value >> 16) & 0xff;
-        raw[offset + 3] = (value >> 24) & 0xff;
-    }
-    */
 
   private:
     std::optional<std::string> name;

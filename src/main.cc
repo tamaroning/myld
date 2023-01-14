@@ -1,9 +1,10 @@
 #include "config.h"
-#include "elf/writer.h"
+//#include "elf/writer.h"
 #include "reader.h"
 #include <fmt/core.h>
 #include <memory>
 #include <string>
+#include "linker.h"
 
 // ref: https://tyfkda.github.io/blog/2020/04/20/elf-obj.html
 
@@ -42,8 +43,15 @@ int main(int argc, char *argv[]) {
 
     std::shared_ptr<Myld::Elf::Parsed::Elf> obj(reader.get_elf());
 
+    /*
     Myld::Elf::Writer writer(output_filename, obj);
     writer.write_file();
+    */
+
+    Myld::Linker linker = Myld::Linker(*obj);
+    linker.link();
+    linker.output(output_filename);
+
     fmt::print("generated {}\n", output_filename);
 
     return 0;

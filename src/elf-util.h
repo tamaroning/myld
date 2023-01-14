@@ -138,7 +138,7 @@ static std::shared_ptr<Elf64_Shdr> create_dummy_sheader_symtab(u32 name_index, E
         .sh_offset = DUMMY,
         .sh_size = DUMMY,
         .sh_link = 3, // TODO: .strtabのsheader index
-        .sh_info = 0, // TODO: 最後のローカルシンボルのindex + 1
+        .sh_info = 2, // TODO: 最後のローカルシンボルのindex + 1
         .sh_addralign = align,
         .sh_entsize = sizeof(Elf64_Sym),
     });

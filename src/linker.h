@@ -58,18 +58,22 @@ class Linker {
 
     void output(std::string filename) {
         std::ofstream stream = std::ofstream(filename, std::ios::binary | std::ios::trunc);
+        u64 current_offset = 0;
 
         // elf header
         fmt::print("writing elf header\n");
         stream.write((char *)&eheader, sizeof(Elf64_Ehdr));
+        current_offset += sizeof(Elf64_Ehdr);
 
         // program header
         fmt::print("writing program header\n");
         stream.write((char *)&pheader, sizeof(Elf64_Phdr));
+        current_offset += sizeof(Elf64_Phdr);
 
         // 0x1000からセクション本体が始まるようにpadding
         fmt::print("inserting paddin after program header\n");
         std::fill_n(std::ostream_iterator<char>(stream), padding_after_pheader, '\0');
+        current_offset += padding_after_pheader;
 
         // section bodies
         fmt::print("writing section bodies\n");
@@ -77,15 +81,21 @@ class Linker {
             fmt::print("body of section [{}]\n", i);
             fmt::print("  padding before body:  0x{:x}\n", sections[i].get_padding_size());
             std::fill_n(std::ostream_iterator<char>(stream), sections[i].get_padding_size(), '\0');
+            current_offset += sections[i].get_padding_size();
+
             fmt::print("  body size:  0x{:x}\n", sections[i].sheader->sh_size);
+            assert(current_offset == sections[i].sheader->sh_offset);
             stream.write((char *)&(sections[i].get_raw()[0]), sections[i].sheader->sh_size);
+            current_offset += sections[i].sheader->sh_size;
         }
 
         // section headers
         fmt::print("writing section header\n");
+        assert(current_offset == eheader.e_shoff);
         for (int i = 0; i < sections.size(); i++) {
             fmt::print("header of section [{}]\n", i);
             stream.write((char *)&(*(sections[i].sheader)), sizeof(Elf64_Shdr));
+            current_offset += sizeof(Elf64_Shdr);
         }
     }
 
@@ -181,16 +191,10 @@ class Linker {
         // NOTE: relocationはobjのSectionでin-placeに行うので、このタイミングでrawを取る
         std::shared_ptr<Parse::Section> obj_symtab_section = obj->get_section_by_name(".symtab");
         u64 obj_symtab_section_size = obj_symtab_section->get_header()->sh_size;
-        //
-        // FIXME: このsubvector抽出がバグってる 生ポインタでUBふんでるっぽい？
-        //
-        // symtab_section.set_raw(std::vector<u8>((u8 *)&(obj_symtab_section->get_raw()[0]),
-        //                                      (u8 *)&(obj_symtab_section->get_raw()[obj_symtab_section_size])));
-        // fmt::print("M{}\n", obj->get_section_by_name(".strtab")->get_header()->sh_size);
-        // fmt::print("M{}\n", obj->get_section_by_name(".strtab")->get_header()->sh_type);
+        symtab_section.set_raw(
+            std::vector<u8>((u8 *)obj_symtab_section->get_raw().to_pointer(),
+                            (u8 *)(obj_symtab_section->get_raw().to_pointer() + obj_symtab_section_size)));
         sections.push_back(symtab_section);
-        // fmt::print("N{}\n", obj->get_section_by_name(".strtab")->get_header()->sh_size);
-        // fmt::print("N{}\n", obj->get_section_by_name(".strtab")->get_header()->sh_type);
 
         // .strtab
         fmt::print("creating .strtab section\n");
@@ -199,8 +203,9 @@ class Linker {
         std::shared_ptr<Parse::Section> obj_strtab_section = obj->get_section_by_name(".strtab");
         u64 obj_strtab_section_size = obj_strtab_section->get_header()->sh_size;
         fmt::print(".strtab size = 0x{:x}\n", obj_strtab_section_size);
-        // strtab_section.set_raw(std::vector<u8>((u8 *)&(obj_strtab_section->get_raw()[0]),
-        //                                        (u8 *)&(obj_strtab_section->get_raw()[obj_strtab_section_size])));
+        strtab_section.set_raw(
+            std::vector<u8>((u8 *)obj_strtab_section->get_raw().to_pointer(),
+                            (u8 *)(obj_strtab_section->get_raw().to_pointer() + obj_strtab_section_size)));
         sections.push_back(strtab_section);
 
         // .shstrtab
@@ -240,8 +245,9 @@ class Linker {
                 }
             }
             fmt::print("padding = 0x{:x}\n", padding_size);
+            section_start_offset += padding_size;
             sections[i].finalize(padding_size, section_start_offset);
-            section_start_offset += padding_size + sections[i].sheader->sh_size;
+            section_start_offset += sections[i].sheader->sh_size;
         }
 
         // calulate distance from first section start to last section end

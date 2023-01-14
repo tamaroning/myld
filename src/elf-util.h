@@ -58,16 +58,16 @@ static void finalize_eheader(Elf64_Ehdr *eheader, Elf64_Addr entry_point_addr, u
     eheader->e_shstrndx = shstrtab_index;
 }
 
-static Elf64_Phdr create_dummy_pheader_load() {
+static Elf64_Phdr create_dummy_pheader_load(u64 vaddr, u64 paddr, u64 align) {
     Elf64_Phdr program_header_entry_load = Elf64_Phdr{
         .p_type = PT_LOAD,
         .p_flags = PF_R | PF_X,
         .p_offset = DUMMY,
-        .p_vaddr = 0x80000,
-        .p_paddr = 0x80000,
+        .p_vaddr = vaddr,
+        .p_paddr = paddr,
         .p_filesz = DUMMY,
         .p_memsz = DUMMY,
-        .p_align = 0x1000,
+        .p_align = align,
     };
     return program_header_entry_load;
 }
@@ -76,20 +76,6 @@ static void finalize_pheader_load(Elf64_Phdr *pheader, u64 text_offset, u64 text
     pheader->p_offset = text_offset;
     pheader->p_filesz = text_size;
     pheader->p_memsz = text_size;
-}
-
-static Elf64_Phdr create_dummy_pheader() {
-    Elf64_Phdr program_header_entry_load = Elf64_Phdr{
-        .p_type = PT_LOAD,
-        .p_flags = PF_R | PF_X,
-        .p_offset = DUMMY,
-        .p_vaddr = 0x80000,
-        .p_paddr = 0x80000,
-        .p_filesz = DUMMY,
-        .p_memsz = DUMMY,
-        .p_align = 0x1000,
-    };
-    return program_header_entry_load;
 }
 
 static std::shared_ptr<Elf64_Shdr> create_sheader_null() {

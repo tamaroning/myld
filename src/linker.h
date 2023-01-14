@@ -91,7 +91,7 @@ class Linker {
 
     void link() {
         eheader = Utils::create_dummy_eheader();
-        pheader = Utils::create_dummy_pheader_load();
+        pheader = Utils::create_dummy_pheader_load(0x80000, 0x80000, 0x1000);
 
         Section null_section = Section(Utils::create_sheader_null());
         sections.push_back(null_section);
@@ -103,7 +103,9 @@ class Linker {
         fmt::print("size {:x}\n", text_section.sheader->sh_size);
         fmt::print("offset {:x}\n", text_section.sheader->sh_offset);
 
+        // とりあえずobjの.textをexecutableの.textとする
         auto obj_text_section = obj.get_section_by_name(".text");
+        assert(obj_text_section != nullptr);
         auto obj_text_size = obj_text_section->get_header()->sh_size;
         text_section.set_raw(
             std::vector<u8>(&(obj_text_section->get_raw()[0]), &(obj_text_section->get_raw()[obj_text_size])));
@@ -125,10 +127,6 @@ class Linker {
         };
         shstrtab_section.set_raw(shstrtab_raw);
         sections.push_back(shstrtab_section);
-
-        Utils::finalize_sheader(text_section.sheader, 0x1000);
-        Utils::finalize_sheader(strtab_section.sheader, 0x1018);
-        Utils::finalize_sheader(shstrtab_section.sheader, 0x1019);
 
         // calculate padding before each section
         u64 first_section_start_offset = 0x1000;
@@ -159,21 +157,20 @@ class Linker {
         }
 
         // calulate range from first section start to last section end
-        fmt::print("calucating section size\n");
-        u64 all_sections_size_sum = 0;
+        u64 dist_from_sections_start_to_sections_end = 0;
         for (int i = 0; i < sections.size(); i++) {
-            fmt::print("section [{}]: ", i);
-            fmt::print("padding = 0x{:x}\n", sections[i].get_padding_size());
-            all_sections_size_sum += sections[i].get_padding_size();
-            all_sections_size_sum += sections[i].sheader->sh_size;
+            dist_from_sections_start_to_sections_end += sections[i].get_padding_size();
+            dist_from_sections_start_to_sections_end += sections[i].sheader->sh_size;
         }
 
         fmt::print("finalize elf header\n");
-        u64 sheader_start_offset = first_section_start_offset + all_sections_size_sum;
+        u64 sheader_start_offset = first_section_start_offset + dist_from_sections_start_to_sections_end;
         fmt::print("start of section header: 0x{:x} = {}\n", sheader_start_offset, sheader_start_offset);
+        // TODO: .text内の_startのオフセット + 0x8000とする
         Utils::finalize_eheader(&eheader, 0x80000, 1, sections.size(), sheader_start_offset);
+        // とりあえず、.textセクションのみロードする
         fmt::print("finalize program header\n");
-        Utils::finalize_pheader_load(&pheader, 0x1000, 0x18);
+        Utils::finalize_pheader_load(&pheader, text_section.sheader->sh_offset, text_section.sheader->sh_size);
     }
 
   private:

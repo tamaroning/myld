@@ -181,8 +181,11 @@ class Linker {
         // NOTE: relocationはobjのSectionでin-placeに行うので、このタイミングでrawを取る
         std::shared_ptr<Parse::Section> obj_symtab_section = obj->get_section_by_name(".symtab");
         u64 obj_symtab_section_size = obj_symtab_section->get_header()->sh_size;
-        symtab_section.set_raw(std::vector<u8>((u8 *)&(obj_symtab_section->get_raw()[0]),
-                                               (u8 *)&(obj_symtab_section->get_raw()[obj_symtab_section_size])));
+        //
+        // FIXME: このsubvector抽出がバグってる 生ポインタでUBふんでるっぽい？
+        // 
+        //symtab_section.set_raw(std::vector<u8>((u8 *)&(obj_symtab_section->get_raw()[0]),
+        //                                      (u8 *)&(obj_symtab_section->get_raw()[obj_symtab_section_size])));
         //fmt::print("M{}\n", obj->get_section_by_name(".strtab")->get_header()->sh_size);
         //fmt::print("M{}\n", obj->get_section_by_name(".strtab")->get_header()->sh_type);
         sections.push_back(symtab_section);
@@ -196,8 +199,8 @@ class Linker {
         std::shared_ptr<Parse::Section> obj_strtab_section = obj->get_section_by_name(".strtab");
         u64 obj_strtab_section_size = obj_strtab_section->get_header()->sh_size;
         fmt::print(".strtab size = 0x{:x}\n", obj_strtab_section_size);
-        strtab_section.set_raw(std::vector<u8>((u8 *)&(obj_strtab_section->get_raw()[0]),
-                                               (u8 *)&(obj_strtab_section->get_raw()[obj_strtab_section_size])));
+        //strtab_section.set_raw(std::vector<u8>((u8 *)&(obj_strtab_section->get_raw()[0]),
+        //                                       (u8 *)&(obj_strtab_section->get_raw()[obj_strtab_section_size])));
         sections.push_back(strtab_section);
 
         // .shstrtab

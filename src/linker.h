@@ -90,9 +90,39 @@ class Linker {
     }
 
     void link() {
+        // extract object file info
+        auto obj_text_section = obj.get_section_by_name(".text");
+        assert(obj_text_section != nullptr);
+        auto obj_text_size = obj_text_section->get_header()->sh_size;
+
+        if (obj.get_rela_text().has_value()) {
+            Parse::RelaText rela_text = obj.get_rela_text().value();
+            for (auto rela_entry : rela_text.get_entries()) {
+                fmt::print("resolving rela: \"{}\"\n", rela_entry->get_name());
+                switch (rela_entry->get_type()) {
+                case R_X86_64_PLT32:
+                    fmt::print("found relocation R_X86_64_PLT32\n");
+                    // PLT32という名前だがpc relativeとして計算 (St_valu    e + Addend - P) P:
+                    // 再配置されるメモリ位置のアドレス ref:
+                    // https://stackoverflow.com/questions/64424692/how-does-the-address-of-r-x86-64-plt32-computed
+                    // TODO:
+                    // (sym->st_value) - (Addend) + (0x80000 + rela->r_offset)
+                    break;
+                default:
+                    fmt::print("Not implemented: rela type = {}\n", rela_entry->get_type());
+                    exit(1);
+                    break;
+                }
+            }
+        }
+
+        // --------------- build elf ---------------
+        // elf header
         eheader = Utils::create_dummy_eheader();
+        // program header
         pheader = Utils::create_dummy_pheader_load(config.get_text_load_addr(), config.get_text_load_addr(), 0x1000);
 
+        // null
         Section null_section = Section(Utils::create_sheader_null());
         sections.push_back(null_section);
 
@@ -104,15 +134,14 @@ class Linker {
         fmt::print("offset {:x}\n", text_section.sheader->sh_offset);
 
         // とりあえずobjの.textをexecutableの.textとする
-        auto obj_text_section = obj.get_section_by_name(".text");
-        assert(obj_text_section != nullptr);
-        auto obj_text_size = obj_text_section->get_header()->sh_size;
         text_section.set_raw(
             std::vector<u8>(&(obj_text_section->get_raw()[0]), &(obj_text_section->get_raw()[obj_text_size])));
         sections.push_back(text_section);
 
+        // .symtab
         fmt::print("creating .symtab section\n");
         Section symtab_section = Section(Utils::create_dummy_sheader_symtab(1, 8));
+        // TODO: content
         std::vector<u8> symtab_raw = {};
         symtab_section.set_raw(symtab_raw);
         sections.push_back(symtab_section);

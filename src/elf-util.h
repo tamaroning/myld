@@ -12,7 +12,7 @@ namespace Utils {
 static Elf64_Ehdr create_dummy_eheader() {
     Elf64_Ehdr header = Elf64_Ehdr{
         // 16 byte
-        .e_ident = {ELFMAG0, ELFMAG1, ELFMAG2, ELFMAG3, ELFCLASS64, ELFDATA2LSB, EV_CURRENT, ELFOSABI_SYSV}, // FIXME:
+        .e_ident = {ELFMAG0, ELFMAG1, ELFMAG2, ELFMAG3, ELFCLASS64, ELFDATA2LSB, EV_CURRENT, ELFOSABI_SYSV},
         // 2 byte
         .e_type = ET_EXEC,
         // 2 byte (0x3e)

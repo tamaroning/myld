@@ -9,7 +9,11 @@ namespace Myld {
 
 class Config {
   public:
-    Config() {}
+    Config() : text_load_addr(0x80000) {}
+    u64 get_text_load_addr() const { return text_load_addr; }
+
+  private:
+    u64 text_load_addr;
 };
 
 class Section {
@@ -87,7 +91,7 @@ class Linker {
 
     void link() {
         eheader = Utils::create_dummy_eheader();
-        pheader = Utils::create_dummy_pheader_load(0x80000, 0x80000, 0x1000);
+        pheader = Utils::create_dummy_pheader_load(config.get_text_load_addr(), config.get_text_load_addr(), 0x1000);
 
         Section null_section = Section(Utils::create_sheader_null());
         sections.push_back(null_section);
@@ -166,7 +170,7 @@ class Linker {
         u64 sheader_start_offset = first_section_start_offset + dist_from_sections_start_to_sections_end;
         fmt::print("start of section header: 0x{:x} = {}\n", sheader_start_offset, sheader_start_offset);
         // TODO: .text内の_startのオフセット + 0x8000とする
-        Utils::finalize_eheader(&eheader, 0x80000, 1, sections.size(), sheader_start_offset);
+        Utils::finalize_eheader(&eheader, config.get_text_load_addr(), 1, sections.size(), sheader_start_offset);
         // とりあえず、.textセクションのみロードする
         fmt::print("finalize program header\n");
         Utils::finalize_pheader_load(&pheader, text_section.sheader->sh_offset, text_section.sheader->sh_size);

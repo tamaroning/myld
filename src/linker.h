@@ -1,14 +1,11 @@
-#include "builder.h"
 #include "elf-util.h"
-#include "elf/parse.h"
+#include "parse-elf.h"
 #include <cassert>
 #include <elf.h>
 #include <fstream>
 #include <optional>
 
 namespace Myld {
-
-using namespace Myld::Elf;
 
 class Config {
   public:
@@ -54,7 +51,7 @@ class Section {
 
 class Linker {
   public:
-    Linker(Parsed::Elf obj) : obj(obj), config(Config()) {}
+    Linker(Parse::Elf obj) : obj(obj), config(Config()) {}
 
     void output(std::string filename) {
         std::ofstream stream = std::ofstream(filename, std::ios::binary | std::ios::trunc);
@@ -174,7 +171,7 @@ class Linker {
     }
 
   private:
-    Parsed::Elf obj;
+    Myld::Parse::Elf obj;
     Config config;
 
     // output

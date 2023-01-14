@@ -1,5 +1,4 @@
 #include "config.h"
-//#include "elf/writer.h"
 #include "reader.h"
 #include <fmt/core.h>
 #include <memory>
@@ -41,12 +40,7 @@ int main(int argc, char *argv[]) {
     Myld::Elf::Reader reader(obj_filename);
     reader.dump();
 
-    std::shared_ptr<Myld::Elf::Parsed::Elf> obj(reader.get_elf());
-
-    /*
-    Myld::Elf::Writer writer(output_filename, obj);
-    writer.write_file();
-    */
+    std::shared_ptr<Myld::Parse::Elf> obj(reader.get_elf());
 
     Myld::Linker linker = Myld::Linker(*obj);
     linker.link();

@@ -14,8 +14,7 @@
 // TODO: 生ポインタを扱ってる箇所が十分なサイズのデータを指しているか確かめる必要がある
 
 namespace Myld {
-namespace Elf {
-namespace Parsed {
+namespace Parse {
 
 class SymTableEntry {
   public:
@@ -299,8 +298,7 @@ class Elf {
     std::optional<RelaText> rela_text;
 };
 
-} // namespace Parsed
-} // namespace Elf
+} // namespace Parse
 } // namespace Myld
 
 #endif

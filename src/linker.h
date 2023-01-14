@@ -54,7 +54,7 @@ class Section {
 
 class Linker {
   public:
-    Linker(Parse::Elf obj) : obj(obj), config(Config()) {}
+    Linker(std::shared_ptr<Parse::Elf> obj) : obj(obj), config(Config()) {}
 
     void output(std::string filename) {
         std::ofstream stream = std::ofstream(filename, std::ios::binary | std::ios::trunc);
@@ -91,14 +91,16 @@ class Linker {
 
     void link() {
         // extract object file info
-        auto obj_text_section = obj.get_section_by_name(".text");
+        auto obj_text_section = obj->get_section_by_name(".text");
         assert(obj_text_section != nullptr);
         auto obj_text_size = obj_text_section->get_header()->sh_size;
 
-        if (obj.get_rela_text().has_value()) {
-            Parse::RelaText rela_text = obj.get_rela_text().value();
+        if (obj->get_rela_text().has_value()) {
+            Parse::RelaText rela_text = obj->get_rela_text().value();
             for (auto rela_entry : rela_text.get_entries()) {
                 fmt::print("resolving rela: \"{}\"\n", rela_entry->get_name());
+                 fmt::print("rela sym = 0x{:x}\n", rela_entry->get_sym());
+                 fmt::print("rela type = 0x{:x}\n", rela_entry->get_type());
                 switch (rela_entry->get_type()) {
                 case R_X86_64_PLT32:
                     fmt::print("found relocation R_X86_64_PLT32\n");
@@ -109,8 +111,8 @@ class Linker {
                     // (sym->st_value) - (Addend) + (0x80000 + rela->r_offset)
                     break;
                 default:
-                    fmt::print("Not implemented: rela type = {}\n", rela_entry->get_type());
-                    exit(1);
+                    fmt::print("Not implemented: rela type = 0x{:x}\n", rela_entry->get_type());
+                    //exit(1);
                     break;
                 }
             }
@@ -212,7 +214,7 @@ class Linker {
     }
 
   private:
-    Myld::Parse::Elf obj;
+    std::shared_ptr<Myld::Parse::Elf> obj;
     Config config;
 
     // output

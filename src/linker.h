@@ -93,7 +93,6 @@ class Linker {
         // resolve symbols
         // f : 0x0->0x80000
         // _start: 0x18 -> 0x80018
-        /*
         for (auto sym_entry : obj->get_sym_table().value().get_entries()) {
             std::string sym_name = sym_entry->get_name();
             u8 sym_type = sym_entry->get_type();
@@ -119,6 +118,7 @@ class Linker {
             }
         }
 
+        /*
         // resolve rela
         if (obj->get_rela_text().has_value()) {
             Parse::RelaText rela_text = obj->get_rela_text().value();
@@ -171,8 +171,8 @@ class Linker {
         // NOTE: relocationはobjのSectionでin-placeに行うので、このタイミングでrawを取る
         std::shared_ptr<Parse::Section> obj_text_section = obj->get_section_by_name(".text");
         u64 obj_text_section_size = obj_text_section->get_header()->sh_size;
-        text_section.set_raw(std::vector<u8>((u8 *)&(obj_text_section->get_raw()[0]),
-                                             (u8 *)&(obj_text_section->get_raw()[obj_text_section_size])));
+        text_section.set_raw(std::vector<u8>((u8 *)obj_text_section->get_raw().to_pointer(),
+                                             (u8 *)(obj_text_section->get_raw().to_pointer() + obj_text_section_size)));
         sections.push_back(text_section);
 
         // .symtab
@@ -183,14 +183,14 @@ class Linker {
         u64 obj_symtab_section_size = obj_symtab_section->get_header()->sh_size;
         //
         // FIXME: このsubvector抽出がバグってる 生ポインタでUBふんでるっぽい？
-        // 
-        //symtab_section.set_raw(std::vector<u8>((u8 *)&(obj_symtab_section->get_raw()[0]),
+        //
+        // symtab_section.set_raw(std::vector<u8>((u8 *)&(obj_symtab_section->get_raw()[0]),
         //                                      (u8 *)&(obj_symtab_section->get_raw()[obj_symtab_section_size])));
-        //fmt::print("M{}\n", obj->get_section_by_name(".strtab")->get_header()->sh_size);
-        //fmt::print("M{}\n", obj->get_section_by_name(".strtab")->get_header()->sh_type);
+        // fmt::print("M{}\n", obj->get_section_by_name(".strtab")->get_header()->sh_size);
+        // fmt::print("M{}\n", obj->get_section_by_name(".strtab")->get_header()->sh_type);
         sections.push_back(symtab_section);
-        //fmt::print("N{}\n", obj->get_section_by_name(".strtab")->get_header()->sh_size);
-        //fmt::print("N{}\n", obj->get_section_by_name(".strtab")->get_header()->sh_type);
+        // fmt::print("N{}\n", obj->get_section_by_name(".strtab")->get_header()->sh_size);
+        // fmt::print("N{}\n", obj->get_section_by_name(".strtab")->get_header()->sh_type);
 
         // .strtab
         fmt::print("creating .strtab section\n");
@@ -199,8 +199,8 @@ class Linker {
         std::shared_ptr<Parse::Section> obj_strtab_section = obj->get_section_by_name(".strtab");
         u64 obj_strtab_section_size = obj_strtab_section->get_header()->sh_size;
         fmt::print(".strtab size = 0x{:x}\n", obj_strtab_section_size);
-        //strtab_section.set_raw(std::vector<u8>((u8 *)&(obj_strtab_section->get_raw()[0]),
-        //                                       (u8 *)&(obj_strtab_section->get_raw()[obj_strtab_section_size])));
+        // strtab_section.set_raw(std::vector<u8>((u8 *)&(obj_strtab_section->get_raw()[0]),
+        //                                        (u8 *)&(obj_strtab_section->get_raw()[obj_strtab_section_size])));
         sections.push_back(strtab_section);
 
         // .shstrtab

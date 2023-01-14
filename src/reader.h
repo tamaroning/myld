@@ -18,9 +18,9 @@ class Reader {
             fmt::print("Couldn't open elf file\n");
             std::exit(1);
         }
-        std::vector<u8> raw = std::vector<u8>(std::istreambuf_iterator<char>(file), {});
-        // TODO: vectorにする必要ない
-        elf = std::make_shared<Parse::Elf>(Parse::Elf(&raw[0]));
+        auto raw_bytes = std::make_shared<std::vector<u8>>(std::vector<u8>(std::istreambuf_iterator<char>(file), {}));
+
+        elf = std::make_shared<Parse::Elf>(Parse::Elf(raw_bytes));
     }
 
     std::string get_filename() { return filename; }

@@ -13,12 +13,33 @@
 
 // TODO: 生ポインタを扱ってる箇所が十分なサイズのデータを指しているか確かめる必要がある
 
+class Raw {
+  public:
+    Raw(std::shared_ptr<const std::vector<u8>> raw) : raw(raw), offset(0), size(raw->size()) {}
+
+    Raw get_sub(u64 offset_, u64 size_) {
+        assert(offset + offset + size_ < raw->size());
+        return Raw(raw, offset + offset_, size_);
+    }
+
+    inline u8 operator[](std::size_t index) const { return (*raw)[index]; }
+
+    u8 *to_pointer() const { return (u8 *)&(*raw)[offset]; }
+
+  private:
+    Raw(std::shared_ptr<const std::vector<u8>> raw, u64 offset, u64 size) : raw(raw), offset(offset), size(size) {}
+
+    std::shared_ptr<const std::vector<u8>> raw;
+    u64 offset;
+    u64 size;
+};
+
 namespace Myld {
 namespace Parse {
 
 class SymTableEntry {
   public:
-    SymTableEntry(Elf64_Sym *raw) : name(std::nullopt), sym(raw) {}
+    SymTableEntry(Raw raw) : name(std::nullopt) { sym = (Elf64_Sym *)raw.to_pointer(); }
 
     void set_name(std::string s) { name = s; }
 
@@ -42,14 +63,14 @@ class SymTableEntry {
 
 class SymTable {
   public:
-    SymTable(Elf64_Shdr *sheader, u8 *raw) : sheader(sheader), entries({}) {
+    SymTable(Elf64_Shdr *sheader, Raw raw) : sheader(sheader), entries({}) {
         assert(sheader->sh_entsize == sizeof(Elf64_Sym));
         symbol_num = sheader->sh_size / sheader->sh_entsize;
         fmt::print("found .symtab section (symbol num = {})\n", symbol_num);
 
         for (int i = 0; i < symbol_num; i++) {
             u32 start = i * sizeof(Elf64_Sym);
-            entries.push_back(std::make_shared<SymTableEntry>(SymTableEntry((Elf64_Sym *)&raw[start])));
+            entries.push_back(std::make_shared<SymTableEntry>(SymTableEntry(raw.get_sub(start, sizeof(Elf64_Sym)))));
         }
     }
 
@@ -76,7 +97,7 @@ class SymTable {
 
 class RelaTextEntry {
   public:
-    RelaTextEntry(Elf64_Rela *raw) : name(std::nullopt), rela(raw) {}
+    RelaTextEntry(Raw raw) : name(std::nullopt) { rela = (Elf64_Rela *)raw.to_pointer(); }
 
     void set_name(std::string s) { name = s; }
 
@@ -98,14 +119,14 @@ class RelaTextEntry {
 
 class RelaText {
   public:
-    RelaText(Elf64_Shdr *sheader, u8 *raw) : sheader(sheader), entries({}) {
+    RelaText(Elf64_Shdr *sheader, Raw raw) : sheader(sheader), entries({}) {
         assert(sheader->sh_entsize == sizeof(Elf64_Rela));
         reloc_num = sheader->sh_size / sheader->sh_entsize;
         fmt::print("found .rela.text section (relocation num = {})\n", reloc_num);
 
         for (int i = 0; i < reloc_num; i++) {
             u32 start = i * sizeof(Elf64_Rela);
-            entries.push_back(std::make_shared<RelaTextEntry>(RelaTextEntry((Elf64_Rela *)&raw[start])));
+            entries.push_back(std::make_shared<RelaTextEntry>(RelaTextEntry(raw.get_sub(start, sizeof(Elf64_Sym)))));
         }
     }
 
@@ -124,7 +145,7 @@ class RelaText {
 // struct represents a section. this contains section header
 class Section {
   public:
-    Section(Elf64_Shdr *header, u8 *raw) : name(std::nullopt), header(header), raw(raw) {
+    Section(Elf64_Shdr *header, Raw raw) : name(std::nullopt), header(header), raw(raw) {
         assert((header->sh_addralign == 0 && header->sh_type == SHT_NULL) ||
                ((header->sh_offset % header->sh_addralign) == 0));
     }
@@ -135,9 +156,10 @@ class Section {
         assert(name != std::nullopt);
         return name.value();
     }
-    u8 *get_raw() const { return raw; }
+    Raw get_raw() const { return raw; }
     Elf64_Shdr *get_header() const { return header; }
 
+    /*
     void embed_raw_i32(u32 offset, i32 value) {
         // little endian
         raw[offset + 0] = (value >> 0) & 0xff;
@@ -145,28 +167,29 @@ class Section {
         raw[offset + 2] = (value >> 16) & 0xff;
         raw[offset + 3] = (value >> 24) & 0xff;
     }
+    */
 
   private:
     std::optional<std::string> name;
     // section header
     Elf64_Shdr *header;
     // content of the section
-    u8 *raw;
+    Raw raw;
 };
 
 class Elf {
   public:
     // create from raw data
-    Elf(u8 *raw) : raw(raw) {
+    Elf(std::shared_ptr<const std::vector<u8>> raw_bytes) : raw(Raw(raw_bytes)) {
         fmt::print("parsing elf header\n");
         // get elf header
-        eheader = (Elf64_Ehdr *)&(raw[0]);
+        eheader = (Elf64_Ehdr *)&((*raw_bytes)[0]);
 
         // get program header
         fmt::print("parsing program header\n");
         if (get_elf_type() == ET_EXEC) {
             for (int i = 0; i < get_program_header_num(); i++) {
-                pheader.push_back((Elf64_Phdr *)&(raw[eheader->e_ehsize]));
+                pheader.push_back((Elf64_Phdr *)raw.get_sub(0, sizeof(Elf64_Phdr)).to_pointer());
             }
         }
 
@@ -175,7 +198,7 @@ class Elf {
         fmt::print("parsing section header\n");
         for (int i = 0; i < get_section_num(); i++) {
             u64 sheader_elem_offset = eheader->e_shoff + eheader->e_shentsize * i;
-            section_headers.push_back((Elf64_Shdr *)&(raw[sheader_elem_offset]));
+            section_headers.push_back((Elf64_Shdr *)raw.get_sub(sheader_elem_offset, sizeof(Elf64_Ehdr)).to_pointer());
         }
 
         // get section data
@@ -183,7 +206,7 @@ class Elf {
         for (int i = 0; i < get_section_num(); i++) {
             fmt::print("parsing sections[{}]\n", i);
             Elf64_Shdr *section_header = section_headers[i];
-            u8 *section_raw = get_raw(section_header->sh_offset, section_header->sh_size);
+            Raw section_raw = raw.get_sub(section_header->sh_offset, section_header->sh_size);
 
             // found symbol table
             if (section_header->sh_type == SHT_SYMTAB) {
@@ -199,11 +222,11 @@ class Elf {
         assert(sym_table != std::nullopt);
 
         // get section name from .shstrtab
-        u8 *shstrtab_raw = sections[eheader->e_shstrndx]->get_raw();
+        Raw shstrtab_raw = sections[eheader->e_shstrndx]->get_raw();
         for (int i = 0; i < get_section_num(); i++) {
             u64 name_index = section_headers[i]->sh_name;
             // FIXME: とりあえず20
-            std::string name(&shstrtab_raw[name_index], &shstrtab_raw[name_index + 20]);
+            std::string name(shstrtab_raw.to_pointer() + name_index, shstrtab_raw.to_pointer() + name_index + 20);
             sections[i]->set_name(name.c_str());
         }
 
@@ -223,8 +246,9 @@ class Elf {
         for (int i = 0; i < sym_table->get_symbol_num(); i++) {
             auto name_index = symtab_entries[i]->get_sym()->st_name;
             // FIXME: とりあえず20
-            std::string symbol_name =
-                std::string(&(strtab->get_raw()[name_index]), &(strtab->get_raw()[name_index + 20])).c_str();
+            std::string symbol_name = std::string(strtab->get_raw().to_pointer() + name_index,
+                                                  strtab->get_raw().to_pointer() + name_index + 20)
+                                          .c_str();
             symtab_entries[i]->set_name(symbol_name);
         }
 
@@ -251,7 +275,7 @@ class Elf {
         return true;
     }
 
-    u8 *get_raw(u64 offset, u64 size) { return &raw[offset]; }
+    Raw get_raw() { return raw; }
 
     u64 get_section_num() { return eheader->e_shnum; }
 
@@ -311,7 +335,7 @@ class Elf {
 
   private:
     // raw data
-    u8 *raw;
+    Raw raw;
     // elf header
     Elf64_Ehdr *eheader;
     // program header

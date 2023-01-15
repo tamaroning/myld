@@ -5,4 +5,5 @@ compile_commands.json
 tests/*/*
 !tests/*/*.c
 !tests/*/*.ld
+!tests/*/*.sh
 tests/myld-a.out

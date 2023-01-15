@@ -1,36 +1,23 @@
-test_name=$1
-src="./$test_name/$test_name.c"
-asm="./$test_name/$test_name.s"
-obj="./$test_name/$test_name.o"
-exe="./$test_name/myld-a.out"
-ldscr="./$test_name/$test_name.ld"
+function test_exec() {
+    echo -n "test: $1 ... " > /dev/tty
 
-LD="../build/myld"
+    ./$1/build.sh
+    if [ $? != 0 ]; then
+        echo "build failed" > /dev/tty
+        exit 1
+    fi
 
-echo "test name : $test_name"
-echo "removing files"
-rm $asm $obj $exe
+    ./$1/myld-a.out
+    actual=$?
 
-echo "compiling $src to assembly"
-cc -S $src -o $asm -m64 -fno-asynchronous-unwind-tables -g0
+    if [ $actual == 0 ]; then
+        echo "ok" > /dev/tty
+    else
+        echo "failed"
+        echo "expected 0, but got $actual" > /dev/tty
+    fi
+}
 
-echo "assembling $asm to object file"
-as -c $asm -o $obj --noexecstack
-
-echo "linking $obj"
-#$LD $obj -o $exe -T $ldscr -nostdlib
-$LD $obj -o $exe
-
-chmod +x $exe
-
-echo "running $exe"
-./$exe
-
-actual=$?
-expected=0
-
-if [ $actual -eq $expected ]; then
-    echo "ok"
-else
-    echo "expected $expected, but got $actual"
-fi
+cd `dirname $0`
+test_exec "simple"
+test_exec "simple2"

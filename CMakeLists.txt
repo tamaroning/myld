@@ -22,10 +22,8 @@ find_package(fmt REQUIRED)
 include_directories(${fmt_INCLUDE_DIRS})
 target_link_libraries(myld fmt::fmt)
 
-# test
-#add_test(
-#  NAME link_test
-#  COMMAND $<TARGET_FILE:myld> --only=mylib::hoge # mylib::hoge というテストのみ実行する
-#  CONFIGURATIONS Release # テスト構成がReleaseのときのみ実行
-#  WORKING_DIRECTORY ${PROJECT_BINARY_DIR}/tmp # 実行ディレクトリは、ビルドディレクトリ直下のtmpディレクトリ
-#)
+# test FIXME:
+add_test(
+  NAME exec_test
+  COMMAND tests/test.sh
+)

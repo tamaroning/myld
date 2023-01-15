@@ -22,12 +22,13 @@ function test_exec() {
     if [ $actual == 0 ]; then
         echo "ok" > /dev/tty
     else
-        echo "failed"
         echo "failed (exitcode: $actual)" > /dev/tty
     fi
 }
 
 cd `dirname $0`
+
 test_exec "simple1"
 test_exec "simple2"
 test_exec "simple3"
+test_exec "static1"

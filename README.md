@@ -4,11 +4,12 @@ A toy linker which outputs an executable ELF for x86-64 processors
 # Requirement
 - C++/C compiler supporting C++20
 - CMake
-- libfmt (run `sudo apt install libfmt-dev` on Ubuntu)
+- libfmt (To install this, run `sudo apt install libfmt-dev`)
 
 # Build
 ```
-cd linker
+git clone <THIS REPO>
+cd myld
 cmake -S . -B build
 cmake --build build
 ```
@@ -21,7 +22,7 @@ You can run `bear -- cmake -- build bulid` to crete compile_commands.json
 
 # Test
 ```
-./test.sh simple
+./test.sh
 ```
 
 # Todo

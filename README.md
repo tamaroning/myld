@@ -32,9 +32,9 @@ You can run `bear -- cmake -- build bulid` to crete compile_commands.json
 
 ### static link
 - [x] 一つのオブジェクトファイルの入力
-- [ ] 複数のオブジェクトファイルの入力
+- [x] 複数のオブジェクトファイルの入力
 - [x] 単一オブジェクトファイルのリロケーション (PLT32)
-- [ ] 複数オブジェクトファイルのリロケーション
+- [x] 複数オブジェクトファイルのリロケーション (PLT32)
 
 ### dynamic link
 - [ ] PLT, GOTを生成

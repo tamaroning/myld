@@ -63,15 +63,27 @@ class Section {
 
 class LinkedSymTableEntry {
   public:
-    LinkedSymTableEntry(std::string name, std::vector<u8> bytes) {
+    LinkedSymTableEntry(std::string name, std::vector<u8> bytes) : name(name), bytes(bytes) {
         // check data size
         assert(bytes.size() == sizeof(Elf64_Sym));
+    }
+
+    static LinkedSymTableEntry from(std::shared_ptr<Parse::SymTableEntry> entry) {
+        LinkedSymTableEntry linked_sym(entry->get_name(), entry->get_raw().to_vec());
+        // name indexは意味をなさなくなるので0にセットしておく
+        linked_sym.get_sym()->st_name = 0;
+        return linked_sym;
     }
 
     std::string get_name() const { return name; }
 
     // clone and return its raw data
     std::vector<u8> get_bytes() const { return std::vector<u8>(bytes); }
+
+    Elf64_Sym *get_sym() {
+        // maybe unsafe operation?
+        return (Elf64_Sym *)(&bytes[0]);
+    }
 
   private:
     std::string name;
@@ -92,14 +104,33 @@ class LinkedSymTable {
 
     void push(std::shared_ptr<LinkedSymTableEntry> sym_entry) { entries.push_back(sym_entry); }
 
-    // convert to raw section data
-    std::vector<u8> to_vec() {
+    // convert to .symtab section data
+    std::vector<u8> to_symtab_section_body() {
+        u64 name_index = 0;
         std::vector<u8> bytes;
         bytes.reserve(entries.size() * sizeof(Elf64_Sym));
         for (auto entry : entries) {
+            // set name index
+            entry->get_sym()->st_name = name_index;
             std::vector<u8> entry_bytes = entry->get_bytes();
             bytes.insert(bytes.end(), entry_bytes.begin(), entry_bytes.end());
+            // update name index (plus 1 because of "\0")
+            name_index += entry->get_name().length() + 1;
         }
+        return bytes;
+    }
+
+    // convert to .strtab section data
+    // これを呼んだあとに、シンボルを追加すると.strtabの一貫性が失われる
+    std::vector<u8> to_strtab_section_body() {
+        std::vector<u8> bytes;
+        bytes.reserve(entries.size() * sizeof(Elf64_Sym));
+        for (auto entry : entries) {
+            std::string name = entry->get_name();
+            bytes.insert(bytes.end(), name.begin(), name.end());
+            bytes.push_back('\0');
+        }
+        return bytes;
     }
 
   private:
@@ -155,34 +186,44 @@ class Linker {
 
     void link() {
         linked_sym_table.init();
+        fmt::print("link start\n");
 
         std::shared_ptr<Parse::Section> obj_text_section = obj->get_section_by_name(".text");
         std::vector<u8> text_raw = obj_text_section->get_raw().to_vec();
 
-        std::shared_ptr<Parse::Section> obj_symtab_section = obj->get_section_by_name(".symtab");
-        std::vector<u8> symtab_raw = obj_symtab_section->get_raw().to_vec();
-
-        std::shared_ptr<Parse::Section> obj_strtab_section = obj->get_section_by_name(".strtab");
-        std::vector<u8> strtab_raw = obj_strtab_section->get_raw().to_vec();
-
+        fmt::print("collecting symbols\n");
         // resolve symbols
-        // f : 0x0->0x80000
-        // _start: 0x18 -> 0x80018
+        // FIXME: 最初のパスは各オブジェクトからsymbolとRelaを集めて、次のパスでlinked symbol tableとrela
+        // tableを書き換えながら、アドレス解決したい。
         for (auto sym_entry : obj->get_sym_table().value().get_entries()) {
-            std::string sym_name = sym_entry->get_name();
             u8 sym_type = sym_entry->get_type();
-            u64 sym_current_value = sym_entry->get_sym()->st_value;
+
             switch (sym_type) {
             case STT_NOTYPE: {
-                // TODO:
+                // null symbol. do nothing here
+                fmt::print("found null\n");
             } break;
             case STT_FILE: {
-                // TODO:
+                // found soure file symbol. push it to linked symbol table
+                fmt::print("found file\n");
+                auto file_sym = std::make_shared<LinkedSymTableEntry>(LinkedSymTableEntry::from(sym_entry));
+                linked_sym_table.push(file_sym);
+                fmt::print("file ok\n");
             } break;
             case STT_FUNC: {
-                u64 resolved_addr = sym_current_value + config.get_text_load_addr();
-                sym_entry->set_value(resolved_addr);
-                if (sym_name == "_start") {
+                // found func symbol
+                fmt::print("found func\n");
+                auto func_sym = std::make_shared<LinkedSymTableEntry>(LinkedSymTableEntry::from(sym_entry));
+                u64 sym_value = func_sym->get_sym()->st_value;
+                // resolve address
+                u64 resolved_addr = sym_value + config.get_text_load_addr();
+                // update value
+                func_sym->get_sym()->st_value = resolved_addr;
+                // push to linked symbol table
+                linked_sym_table.push(func_sym);
+
+                // this symbol matches with "_start"?
+                if (func_sym->get_name() == "_start") {
                     _start_addr = resolved_addr;
                 }
             } break;
@@ -194,6 +235,7 @@ class Linker {
         }
 
         // resolve rela
+        fmt::print("resolving address\n");
         if (obj->get_rela_text().has_value()) {
             Parse::RelaText rela_text = obj->get_rela_text().value();
             for (auto rela_entry : rela_text.get_entries()) {
@@ -214,7 +256,7 @@ class Linker {
                     std::shared_ptr<Parse::SymTableEntry> symbol = obj->get_sym_table()->get_symbol_by_name(rela_name);
                     assert(symbol != nullptr);
                     i32 resolved_rel32 = symbol->get_sym()->st_value + rela_entry->get_rela()->r_addend -
-                                         (config.get_text_load_addr() + rela_entry->get_rela()->r_offset);
+                                         rela_entry->get_rela()->r_offset;
 
                     fmt::print("  resolved rel32= {}\n", resolved_rel32);
                     // FIXME:
@@ -240,7 +282,7 @@ class Linker {
 
         // .text
         fmt::print("creating .text section\n");
-        Section text_section = Section(Utils::create_dummy_sheader_text(27, 0x1));
+        Section text_section = Section(Utils::create_dummy_sheader_text(27, 0x1, config.get_text_load_addr()));
         // NOTE: relocationはobjのSectionでin-placeに行うので、このタイミングでrawを取る
         text_section.set_raw(text_raw);
         sections.push_back(text_section);
@@ -248,14 +290,13 @@ class Linker {
         // .symtab
         fmt::print("creating .symtab section\n");
         Section symtab_section = Section(Utils::create_dummy_sheader_symtab(1, 8));
-        symtab_section.set_raw(std::vector<u8>(symtab_raw));
+        symtab_section.set_raw(linked_sym_table.to_symtab_section_body());
         sections.push_back(symtab_section);
 
         // .strtab
         fmt::print("creating .strtab section\n");
         Section strtab_section = Section(Utils::create_dummy_sheader_strtab(9, 1));
-        fmt::print(".strtab size = 0x{:x}\n", strtab_raw.size());
-        strtab_section.set_raw(strtab_raw);
+        strtab_section.set_raw(linked_sym_table.to_strtab_section_body());
         sections.push_back(strtab_section);
 
         // .shstrtab

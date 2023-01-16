@@ -93,12 +93,12 @@ static std::shared_ptr<Elf64_Shdr> create_sheader_null() {
     });
 }
 
-static std::shared_ptr<Elf64_Shdr> create_dummy_sheader_text(u32 name_index, Elf64_Xword align) {
+static std::shared_ptr<Elf64_Shdr> create_dummy_sheader_text(u32 name_index, Elf64_Xword align, Elf64_Addr addr) {
     return std::make_shared<Elf64_Shdr>(Elf64_Shdr{
         .sh_name = name_index,
         .sh_type = SHT_PROGBITS,
         .sh_flags = SHF_ALLOC | SHF_EXECINSTR,
-        .sh_addr = 0, // TODO:
+        .sh_addr = addr,
         .sh_offset = DUMMY,
         .sh_size = DUMMY,
         .sh_link = 0,

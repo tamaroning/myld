@@ -30,6 +30,7 @@ class SymTableEntry {
         return name.value();
     }
 
+    // TODO: change to const Elf64_Sym*?
     Elf64_Sym *get_sym() const { return (Elf64_Sym *)raw.to_pointer(); }
 
     Raw get_raw() const { return raw; }
@@ -37,8 +38,6 @@ class SymTableEntry {
     u8 get_bind() const { return ELF64_ST_BIND(get_sym()->st_info); }
 
     u8 get_type() const { return ELF64_ST_TYPE(get_sym()->st_info); }
-
-    void set_value(u64 value) { get_sym()->st_value = value; }
 
   private:
     std::optional<std::string> name;

@@ -89,11 +89,6 @@ class LinkedSymTableEntry {
         return (Elf64_Sym *)(&bytes[0]);
     }
 
-    const Elf64_Sym *get_const_sym() const {
-        // maybe unsafe operation?
-        return (Elf64_Sym *)(&bytes[0]);
-    }
-
     u8 get_bind() const { return ELF64_ST_BIND(get_const_sym()->st_info); }
 
     u8 get_type() const { return ELF64_ST_TYPE(get_const_sym()->st_info); }
@@ -103,12 +98,19 @@ class LinkedSymTableEntry {
     std::vector<u8> bytes;
     // "" in case of null symbol
     ObjFileName obj_file_name;
+
+    const Elf64_Sym *get_const_sym() const {
+        // maybe unsafe operation?
+        return (Elf64_Sym *)(&bytes[0]);
+    }
 };
 
 // class represents a new symbol table whose symbols are gathered from multiple object files
 class LinkedSymTable {
   public:
     LinkedSymTable() : entries({}) {}
+
+    std::vector<std::shared_ptr<LinkedSymTableEntry>> get_entries() { return entries; }
 
     // initialize symbol table. Especially, push null symbol to the table
     void init() {
@@ -241,7 +243,7 @@ class Linker {
         std::vector<u8> text_raw = obj_text_section->get_raw().to_vec();
 
         fmt::print("collecting symbols\n");
-        // resolve symbols
+        // push all symbols to linked symbol table
         // FIXME: 最初のパスは各オブジェクトからsymbolとRelaを集めて、次のパスでlinked symbol tableとrela
         // tableを書き換えながら、アドレス解決したい。
         for (auto sym_entry : obj->get_sym_table().value().get_entries()) {
@@ -250,36 +252,40 @@ class Linker {
             switch (sym_type) {
             case STT_NOTYPE: {
                 // null symbol. do nothing here
-                fmt::print("found null\n");
             } break;
-            case STT_FILE: {
-                // found soure file symbol. push it to linked symbol table
-                fmt::print("found file\n");
-                auto file_sym =
-                    std::make_shared<LinkedSymTableEntry>(LinkedSymTableEntry::from(sym_entry, obj->get_filename()));
-                linked_sym_table.push(file_sym);
-                fmt::print("file ok\n");
-            } break;
+            // found FILE, FUNC. push them to linked symbol table
+            case STT_FILE:
             case STT_FUNC: {
                 // found func symbolP
-                fmt::print("found func\n");
-                auto func_sym =
-                    std::make_shared<LinkedSymTableEntry>(LinkedSymTableEntry::from(sym_entry, obj->get_filename()));
-                u64 sym_value = func_sym->get_sym()->st_value;
-                // resolve address
-                u64 resolved_addr = sym_value + config.get_text_load_addr();
-                // update value
-                func_sym->get_sym()->st_value = resolved_addr;
-                // push to linked symbol table
-                linked_sym_table.push(func_sym);
+                auto sym = std::make_shared<LinkedSymTableEntry>(LinkedSymTableEntry::from(sym_entry, obj->get_filename()));
+                linked_sym_table.push(sym);
+            } break;
+            default: {
+                fmt::print("Not implemented: symbol type = 0x{:x}\n", sym_type);
+                exit(1);
+            } break;
+            }
+        }
 
-                // this symbol matches with "_start"?
-                if (func_sym->get_name() == "_start") {
+        // decide layout of `.text`
+        // TODO:
+
+        // resolve symbol address
+        for (auto entry : linked_sym_table.get_entries()) {
+            switch (entry->get_type()) {
+            case STT_NOTYPE:
+                break;
+            case STT_FILE:
+                break;
+            case STT_FUNC: {
+                u64 resolved_addr = entry->get_sym()->st_value + config.get_text_load_addr();
+                entry->get_sym()->st_value = resolved_addr;
+                if (entry->get_name() == "_start") {
                     _start_addr = resolved_addr;
                 }
             } break;
             default: {
-                fmt::print("Not implemented: symbol type = 0x{:x}\n", sym_type);
+                fmt::print("Not implemented: symbol type = 0x{:x}\n", entry->get_type());
                 exit(1);
             } break;
             }

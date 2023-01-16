@@ -20,7 +20,7 @@ class Reader {
         }
         auto raw_bytes = std::make_shared<std::vector<u8>>(std::vector<u8>(std::istreambuf_iterator<char>(file), {}));
 
-        elf = std::make_shared<Parse::Elf>(Parse::Elf(raw_bytes));
+        elf = std::make_shared<Parse::Elf>(Parse::Elf(filename, raw_bytes));
     }
 
     std::string get_filename() { return filename; }

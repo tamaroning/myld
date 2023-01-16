@@ -8,9 +8,10 @@
 typedef uint8_t u8;
 typedef uint32_t u32;
 typedef uint64_t u64;
-
 typedef int32_t i32;
 typedef int64_t i64;
+
+typedef std::string ObjFileName;
 
 template <typename T> std::vector<u8> to_bytes(T data) {
     const char *ptr = reinterpret_cast<char *>(&data);

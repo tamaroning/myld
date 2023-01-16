@@ -4,6 +4,7 @@
 #include <cassert>
 #include <elf.h>
 #include <fstream>
+#include <map>
 #include <optional>
 
 namespace Myld {
@@ -63,19 +64,22 @@ class Section {
 
 class LinkedSymTableEntry {
   public:
-    LinkedSymTableEntry(std::string name, std::vector<u8> bytes) : name(name), bytes(bytes) {
+    LinkedSymTableEntry(std::string name, std::vector<u8> bytes, ObjFileName obj_file_name)
+        : name(name), bytes(bytes), obj_file_name(obj_file_name) {
         // check data size
         assert(bytes.size() == sizeof(Elf64_Sym));
     }
 
-    static LinkedSymTableEntry from(std::shared_ptr<Parse::SymTableEntry> entry) {
-        LinkedSymTableEntry linked_sym(entry->get_name(), entry->get_raw().to_vec());
+    static LinkedSymTableEntry from(std::shared_ptr<Parse::SymTableEntry> entry, ObjFileName obj_file_name) {
+        LinkedSymTableEntry linked_sym(entry->get_name(), entry->get_raw().to_vec(), obj_file_name);
         // name indexは意味をなさなくなるので0にセットしておく
         linked_sym.get_sym()->st_name = 0;
         return linked_sym;
     }
 
     std::string get_name() const { return name; }
+
+    std::string get_obj_file_name() const { return obj_file_name; }
 
     // clone and return its raw data
     std::vector<u8> get_bytes() const { return std::vector<u8>(bytes); }
@@ -97,6 +101,8 @@ class LinkedSymTableEntry {
   private:
     std::string name;
     std::vector<u8> bytes;
+    // "" in case of null symbol
+    ObjFileName obj_file_name;
 };
 
 // class represents a new symbol table whose symbols are gathered from multiple object files
@@ -104,14 +110,24 @@ class LinkedSymTable {
   public:
     LinkedSymTable() : entries({}) {}
 
+    // initialize symbol table. Especially, push null symbol to the table
     void init() {
         // push null symbol as the first symbol
         auto null_sym_bytes = std::vector<u8>(to_bytes(Utils::create_null_sym()));
-        LinkedSymTableEntry null_sym = LinkedSymTableEntry("", null_sym_bytes);
+        LinkedSymTableEntry null_sym = LinkedSymTableEntry("", null_sym_bytes, "");
         push(std::make_shared<LinkedSymTableEntry>(null_sym));
     }
 
     void push(std::shared_ptr<LinkedSymTableEntry> sym_entry) { entries.push_back(sym_entry); }
+
+    std::shared_ptr<LinkedSymTableEntry> get_symbol_by_name(std::string name) const {
+        for (auto entry : entries) {
+            if (entry->get_name() == name) {
+                return entry;
+            }
+        }
+        return nullptr;
+    }
 
     // convert to .symtab section data
     std::vector<u8> to_symtab_section_body() {
@@ -172,7 +188,7 @@ class LinkedSymTable {
 
 class Linker {
   public:
-    Linker(std::shared_ptr<Parse::Elf> obj) : obj(obj), config(Config()) {}
+    Linker(std::shared_ptr<Parse::Elf> obj) : obj(obj), config(Config()), text_offset_map() {}
 
     void output(std::string filename) {
         std::ofstream stream = std::ofstream(filename, std::ios::binary | std::ios::trunc);
@@ -239,14 +255,16 @@ class Linker {
             case STT_FILE: {
                 // found soure file symbol. push it to linked symbol table
                 fmt::print("found file\n");
-                auto file_sym = std::make_shared<LinkedSymTableEntry>(LinkedSymTableEntry::from(sym_entry));
+                auto file_sym =
+                    std::make_shared<LinkedSymTableEntry>(LinkedSymTableEntry::from(sym_entry, obj->get_filename()));
                 linked_sym_table.push(file_sym);
                 fmt::print("file ok\n");
             } break;
             case STT_FUNC: {
-                // found func symbol
+                // found func symbolP
                 fmt::print("found func\n");
-                auto func_sym = std::make_shared<LinkedSymTableEntry>(LinkedSymTableEntry::from(sym_entry));
+                auto func_sym =
+                    std::make_shared<LinkedSymTableEntry>(LinkedSymTableEntry::from(sym_entry, obj->get_filename()));
                 u64 sym_value = func_sym->get_sym()->st_value;
                 // resolve address
                 u64 resolved_addr = sym_value + config.get_text_load_addr();
@@ -395,6 +413,7 @@ class Linker {
     std::shared_ptr<Myld::Parse::Elf> obj;
     Config config;
     LinkedSymTable linked_sym_table;
+    std::map<ObjFileName, u64> text_offset_map;
 
     // resolved address of `_start`
     u64 _start_addr;

@@ -154,7 +154,7 @@ class Section {
 class Elf {
   public:
     // create from raw data
-    Elf(std::shared_ptr<const std::vector<u8>> raw_bytes) : raw(Raw(raw_bytes)) {
+    Elf(std::string filename, std::shared_ptr<const std::vector<u8>> raw_bytes) : filename(filename), raw(Raw(raw_bytes)) {
         fmt::print("parsing elf header\n");
         // get elf header
         eheader = (Elf64_Ehdr *)&((*raw_bytes)[0]);
@@ -241,6 +241,8 @@ class Elf {
         }
     }
 
+    ObjFileName get_filename() const { return filename; }
+
     u8 get_elf_type() { return eheader->e_type; }
 
     bool is_supported_type() {
@@ -308,6 +310,8 @@ class Elf {
     }
 
   private:
+    // use filename as identifier of this structure
+    std::string filename;
     // raw data
     Raw raw;
     // elf header

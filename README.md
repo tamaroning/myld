@@ -28,6 +28,7 @@ You can run `bear -- cmake -- build bulid` to crete compile_commands.json
 # Todo
 - [x] executableの出力
 - [ ] relocatableの出力
+- [x] .strtabと.symtab生成
 
 ### static link
 - [x] 一つのオブジェクトファイルの入力

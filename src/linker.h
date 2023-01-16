@@ -85,6 +85,15 @@ class LinkedSymTableEntry {
         return (Elf64_Sym *)(&bytes[0]);
     }
 
+    const Elf64_Sym *get_const_sym() const {
+        // maybe unsafe operation?
+        return (Elf64_Sym *)(&bytes[0]);
+    }
+
+    u8 get_bind() const { return ELF64_ST_BIND(get_const_sym()->st_info); }
+
+    u8 get_type() const { return ELF64_ST_TYPE(get_const_sym()->st_info); }
+
   private:
     std::string name;
     std::vector<u8> bytes;
@@ -109,13 +118,25 @@ class LinkedSymTable {
         u64 name_index = 0;
         std::vector<u8> bytes;
         bytes.reserve(entries.size() * sizeof(Elf64_Sym));
-        for (auto entry : entries) {
-            // set name index
-            entry->get_sym()->st_name = name_index;
-            std::vector<u8> entry_bytes = entry->get_bytes();
-            bytes.insert(bytes.end(), entry_bytes.begin(), entry_bytes.end());
-            // update name index (plus 1 because of "\0")
-            name_index += entry->get_name().length() + 1;
+        for (int i = 0; i < 2; i++) {
+            for (auto entry : entries) {
+                // To locate FILE symbols front of symbol table entry, we take the following measure:
+                // We scan entries linearly twice.
+                // In first scan, only looks for FILE
+                // In second scan. looks for other symbols
+                if (i == 0 && entry->get_type() != STT_FILE) {
+                    continue;
+                } else if (i == 1 && entry->get_type() == STT_FILE) {
+                    continue;
+                }
+
+                // set name index
+                entry->get_sym()->st_name = name_index;
+                std::vector<u8> entry_bytes = entry->get_bytes();
+                bytes.insert(bytes.end(), entry_bytes.begin(), entry_bytes.end());
+                // update name index (plus 1 because of "\0")
+                name_index += entry->get_name().length() + 1;
+            }
         }
         return bytes;
     }
@@ -125,10 +146,22 @@ class LinkedSymTable {
     std::vector<u8> to_strtab_section_body() {
         std::vector<u8> bytes;
         bytes.reserve(entries.size() * sizeof(Elf64_Sym));
-        for (auto entry : entries) {
-            std::string name = entry->get_name();
-            bytes.insert(bytes.end(), name.begin(), name.end());
-            bytes.push_back('\0');
+        for (int i = 0; i < 2; i++) {
+            for (auto entry : entries) {
+                // To locate FILE symbols front of symbol table entry, we take the following measure:
+                // We scan entries linearly twice.
+                // In first scan, only looks for FILE
+                // In second scan. looks for other symbols
+                if (i == 0 && entry->get_type() != STT_FILE) {
+                    continue;
+                } else if (i == 1 && entry->get_type() == STT_FILE) {
+                    continue;
+                }
+
+                std::string name = entry->get_name();
+                bytes.insert(bytes.end(), name.begin(), name.end());
+                bytes.push_back('\0');
+            }
         }
         return bytes;
     }
@@ -363,6 +396,9 @@ class Linker {
     Config config;
     LinkedSymTable linked_sym_table;
 
+    // resolved address of `_start`
+    u64 _start_addr;
+
     // output
     Elf64_Ehdr eheader;
     Elf64_Phdr pheader;
@@ -370,9 +406,6 @@ class Linker {
     std::vector<Section> sections;
 
     u64 padding_after_pheader;
-
-    // 解決した_startのアドレス
-    u64 _start_addr;
 };
 
 } // namespace Myld

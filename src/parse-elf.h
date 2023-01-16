@@ -89,6 +89,7 @@ class RelaTextEntry {
         return name.value();
     }
 
+    // TODO: change to const Elf64_Rela*?
     Elf64_Rela *get_rela() const { return (Elf64_Rela *)raw.to_pointer(); }
 
     u32 get_type() const { return ELF64_R_TYPE(get_rela()->r_info); }

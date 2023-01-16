@@ -13,42 +13,12 @@
 
 // TODO: 生ポインタを扱ってる箇所が十分なサイズのデータを指しているか確かめる必要がある
 
-class Raw {
-  public:
-    Raw(std::shared_ptr<const std::vector<u8>> raw) : raw(raw), offset(0), size(raw->size()) {}
-
-    Raw get_sub(u64 offset_, u64 size_) {
-        assert(offset + offset + size_ < raw->size());
-        return Raw(raw, offset + offset_, size_);
-    }
-
-    inline u8 operator[](std::size_t index) const { return (*raw)[index]; }
-
-    u8 *to_pointer() const { return (u8 *)&(*raw)[offset]; }
-
-    std::vector<u8> to_vec() {
-        std::vector<u8> v1;
-        v1.reserve(size);
-        for (u64 u = 0; u < size; u++) {
-            v1.push_back((*raw)[offset + u]);
-        }
-        return v1;
-    }
-
-  private:
-    Raw(std::shared_ptr<const std::vector<u8>> raw, u64 offset, u64 size) : raw(raw), offset(offset), size(size) {}
-
-    std::shared_ptr<const std::vector<u8>> raw;
-    u64 offset;
-    u64 size;
-};
-
 namespace Myld {
 namespace Parse {
 
 class SymTableEntry {
   public:
-    SymTableEntry(Raw raw) : name(std::nullopt) { sym = (Elf64_Sym *)raw.to_pointer(); }
+    SymTableEntry(Raw raw_) : name(std::nullopt), raw(raw_) {}
 
     void set_name(std::string s) { name = s; }
 
@@ -57,17 +27,19 @@ class SymTableEntry {
         return name.value();
     }
 
-    Elf64_Sym *get_sym() const { return sym; }
+    Elf64_Sym *get_sym() const { return (Elf64_Sym *)raw.to_pointer(); }
 
-    u8 get_bind() const { return ELF64_ST_BIND(sym->st_info); }
+    Raw get_raw() const { return raw; }
 
-    u8 get_type() const { return ELF64_ST_TYPE(sym->st_info); }
+    u8 get_bind() const { return ELF64_ST_BIND(get_sym()->st_info); }
 
-    void set_value(u64 value) { sym->st_value = value; }
+    u8 get_type() const { return ELF64_ST_TYPE(get_sym()->st_info); }
+
+    void set_value(u64 value) { get_sym()->st_value = value; }
 
   private:
     std::optional<std::string> name;
-    Elf64_Sym *sym;
+    Raw raw;
 };
 
 class SymTable {
@@ -106,7 +78,7 @@ class SymTable {
 
 class RelaTextEntry {
   public:
-    RelaTextEntry(Raw raw) : name(std::nullopt) { rela = (Elf64_Rela *)raw.to_pointer(); }
+    RelaTextEntry(Raw raw_) : name(std::nullopt), raw(raw_) {}
 
     void set_name(std::string s) { name = s; }
 
@@ -115,15 +87,15 @@ class RelaTextEntry {
         return name.value();
     }
 
-    Elf64_Rela *get_rela() const { return rela; }
+    Elf64_Rela *get_rela() const { return (Elf64_Rela *)raw.to_pointer(); }
 
-    u32 get_type() const { return ELF64_R_TYPE(rela->r_info); }
+    u32 get_type() const { return ELF64_R_TYPE(get_rela()->r_info); }
 
-    u32 get_sym() const { return ELF64_R_SYM(rela->r_info); }
+    u32 get_sym() const { return ELF64_R_SYM(get_rela()->r_info); }
 
   private:
     std::optional<std::string> name;
-    Elf64_Rela *rela;
+    Raw raw;
 };
 
 class RelaText {

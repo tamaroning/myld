@@ -1,24 +1,18 @@
 #include "config.h"
+#include "linker.h"
 #include "reader.h"
 #include <fmt/core.h>
 #include <memory>
 #include <string>
-#include "linker.h"
-
-// ref: https://tyfkda.github.io/blog/2020/04/20/elf-obj.html
+#include <vector>
 
 const char *kOutputFileName = "myld-a.out";
 
 int main(int argc, char *argv[]) {
     fmt::print("myld version {}\n", MYLD_VERSION);
 
-    if (argc < 2) {
-        fmt::print("Usage: myld [options] <filename>\n");
-        return 0;
-    }
-
     std::string output_filename = kOutputFileName;
-    std::string obj_filename = kOutputFileName;
+    std::vector<std::string> input_filenames({});
 
     int arg_index = 1;
     while (true) {
@@ -31,16 +25,31 @@ int main(int argc, char *argv[]) {
             continue;
         }
 
-        obj_filename = argv[arg_index];
+        input_filenames.push_back(argv[arg_index]);
         arg_index++;
     }
-    fmt::print("input file {}\n", obj_filename);
-    fmt::print("output file {}\n", output_filename);
 
-    Myld::Elf::Reader reader(obj_filename);
-    reader.dump();
+    if (input_filenames.size() == 0) {
+        fmt::print("Usage: myld [options] <filename>\n");
+        return 0;
+    }
 
-    Myld::Linker linker = Myld::Linker(reader.get_elf());
+    fmt::print("input file: ");
+    for (auto name: input_filenames) {
+        fmt::print("{}, ", name);
+    }
+    fmt::print("\n");
+
+    fmt::print("output file: {}\n", output_filename);
+
+    std::vector<std::shared_ptr<Myld::Parse::Elf>> objs({});
+    for(auto obj_filename: input_filenames) {
+        Myld::Elf::Reader reader(obj_filename);
+        reader.dump();
+        objs.push_back(reader.get_elf());
+    }
+
+    Myld::Linker linker = Myld::Linker(objs);
     linker.link();
     linker.output(output_filename);
 

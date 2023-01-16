@@ -128,8 +128,7 @@ static std::shared_ptr<Elf64_Shdr> create_dummy_sheader_strtab(u32 name_index, u
     });
 }
 
-static std::shared_ptr<Elf64_Shdr> create_dummy_sheader_symtab(u32 name_index, Elf64_Xword align) {
-    // TODO: linkとinfo
+static std::shared_ptr<Elf64_Shdr> create_dummy_sheader_symtab(u32 name_index, Elf64_Xword align, Elf64_Word strtab_sh_index, Elf64_Word local_sym_num) {
     return std::make_shared<Elf64_Shdr>(Elf64_Shdr{
         .sh_name = name_index,
         .sh_type = SHT_SYMTAB,
@@ -137,8 +136,8 @@ static std::shared_ptr<Elf64_Shdr> create_dummy_sheader_symtab(u32 name_index, E
         .sh_addr = 0,
         .sh_offset = DUMMY,
         .sh_size = DUMMY,
-        .sh_link = 3, // TODO: .strtabのsheader index
-        .sh_info = 2, // TODO: 最後のローカルシンボルのindex + 1
+        .sh_link = strtab_sh_index,
+        .sh_info = local_sym_num, // FIXME: 最後のローカルシンボルのindex + 1とするのが正しい
         .sh_addralign = align,
         .sh_entsize = sizeof(Elf64_Sym),
     });

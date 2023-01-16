@@ -142,6 +142,7 @@ class LinkedSymTable {
                 // We scan entries linearly twice.
                 // In first scan, only looks for FILE
                 // In second scan. looks for other symbols
+                // FIXME: buggy. 単純にエントリーをtypeでソートするほうがいい
                 if (i == 0 && entry->get_type() != STT_FILE) {
                     continue;
                 } else if (i == 1 && entry->get_type() == STT_FILE) {
@@ -170,6 +171,7 @@ class LinkedSymTable {
                 // We scan entries linearly twice.
                 // In first scan, only looks for FILE
                 // In second scan. looks for other symbols
+                // FIXME: buggy. 単純にエントリーをtypeでソートするほうがいい
                 if (i == 0 && entry->get_type() != STT_FILE) {
                     continue;
                 } else if (i == 1 && entry->get_type() == STT_FILE) {
@@ -184,13 +186,23 @@ class LinkedSymTable {
         return bytes;
     }
 
+    u64 get_local_symbol_num() {
+        u64 ret = 0;
+        for (auto entry : entries) {
+            if (entry->get_bind() == STB_LOCAL) {
+                ret++;
+            }
+        }
+        return ret;
+    }
+
   private:
     std::vector<std::shared_ptr<LinkedSymTableEntry>> entries;
 };
 
 class Linker {
   public:
-    Linker(std::shared_ptr<Parse::Elf> obj) : obj(obj), config(Config()), text_offset_map() {}
+    Linker(std::vector<std::shared_ptr<Parse::Elf>> objs) : objs(objs), config(Config()), text_offset_map() {}
 
     void output(std::string filename) {
         std::ofstream stream = std::ofstream(filename, std::ios::binary | std::ios::trunc);
@@ -239,36 +251,44 @@ class Linker {
         linked_sym_table.init();
         fmt::print("link start\n");
 
-        std::shared_ptr<Parse::Section> obj_text_section = obj->get_section_by_name(".text");
-        std::vector<u8> text_raw = obj_text_section->get_raw().to_vec();
+        // std::shared_ptr<Parse::Section> obj_text_section = obj->get_section_by_name(".text");
+        // std::vector<u8> text_raw = obj_text_section->get_raw().to_vec();
 
         fmt::print("collecting symbols\n");
         // push all symbols to linked symbol table
-        // FIXME: 最初のパスは各オブジェクトからsymbolとRelaを集めて、次のパスでlinked symbol tableとrela
-        // tableを書き換えながら、アドレス解決したい。
-        for (auto sym_entry : obj->get_sym_table().value().get_entries()) {
-            u8 sym_type = sym_entry->get_type();
+        for (auto obj : objs) {
+            for (auto sym_entry : obj->get_sym_table().value().get_entries()) {
+                u8 sym_type = sym_entry->get_type();
 
-            switch (sym_type) {
-            case STT_NOTYPE: {
-                // null symbol. do nothing here
-            } break;
-            // found FILE, FUNC. push them to linked symbol table
-            case STT_FILE:
-            case STT_FUNC: {
-                // found func symbolP
-                auto sym = std::make_shared<LinkedSymTableEntry>(LinkedSymTableEntry::from(sym_entry, obj->get_filename()));
-                linked_sym_table.push(sym);
-            } break;
-            default: {
-                fmt::print("Not implemented: symbol type = 0x{:x}\n", sym_type);
-                exit(1);
-            } break;
+                switch (sym_type) {
+                case STT_NOTYPE: {
+                    // null symbol. do nothing here
+                } break;
+                // found FILE, FUNC. push them to linked symbol table
+                case STT_FILE:
+                case STT_FUNC: {
+                    // found func symbolP
+                    auto sym = std::make_shared<LinkedSymTableEntry>(
+                        LinkedSymTableEntry::from(sym_entry, obj->get_filename()));
+                    linked_sym_table.push(sym);
+                } break;
+                default: {
+                    fmt::print("Not implemented: symbol type = 0x{:x}\n", sym_type);
+                    exit(1);
+                } break;
+                }
             }
         }
 
         // decide layout of `.text`
-        // TODO:
+        // generate .text section by just concatinating all .text sections (alignment = 1byte)
+        std::vector<u8> text_raw({});
+        for (auto obj : objs) {
+            std::shared_ptr<Parse::Section> obj_text_section = obj->get_section_by_name(".text");
+            std::vector<u8> obj_text_raw = obj_text_section->get_raw().to_vec();
+            text_offset_map[obj->get_filename()] = text_raw.size();
+            text_raw.insert(text_raw.end(), obj_text_raw.begin(), obj_text_raw.end());
+        }
 
         // resolve symbol address
         for (auto entry : linked_sym_table.get_entries()) {
@@ -278,7 +298,8 @@ class Linker {
             case STT_FILE:
                 break;
             case STT_FUNC: {
-                u64 resolved_addr = entry->get_sym()->st_value + config.get_text_load_addr();
+                u64 resolved_addr = entry->get_sym()->st_value + config.get_text_load_addr() +
+                                    text_offset_map[entry->get_obj_file_name()];
                 entry->get_sym()->st_value = resolved_addr;
                 if (entry->get_name() == "_start") {
                     _start_addr = resolved_addr;
@@ -293,36 +314,39 @@ class Linker {
 
         // resolve rela
         fmt::print("resolving address\n");
-        if (obj->get_rela_text().has_value()) {
-            Parse::RelaText rela_text = obj->get_rela_text().value();
-            for (auto rela_entry : rela_text.get_entries()) {
-                std::string rela_name = rela_entry->get_name();
-                u32 rela_type = rela_entry->get_type();
-                u64 rela_offset = rela_entry->get_rela()->r_offset;
+        for (auto obj : objs) {
+            if (obj->get_rela_text().has_value()) {
+                Parse::RelaText rela_text = obj->get_rela_text().value();
+                for (auto rela_entry : rela_text.get_entries()) {
+                    std::string rela_name = rela_entry->get_name();
+                    u32 rela_type = rela_entry->get_type();
+                    u64 rela_offset = rela_entry->get_rela()->r_offset;
 
-                fmt::print("resolving rela: \"{}\"\n", rela_name);
-                fmt::print("  rela type = 0x{:x}\n", rela_type);
-                switch (rela_type) {
-                case R_X86_64_PLT32: {
-                    fmt::print("found relocation R_X86_64_PLT32\n");
-                    // PLT32という名前だがpc relativeとして計算 (St_valu    e + Addend - P) P:
-                    // 再配置されるメモリ位置のアドレス ref:
-                    // https://stackoverflow.com/questions/64424692/how-does-the-address-of-r-x86-64-plt32-computed
-                    // TODO:
-                    // (sym->st_value) + (Addend) - (0x80000 + rela->r_offset)
-                    std::shared_ptr<Parse::SymTableEntry> symbol = obj->get_sym_table()->get_symbol_by_name(rela_name);
-                    assert(symbol != nullptr);
-                    i32 resolved_rel32 = symbol->get_sym()->st_value + rela_entry->get_rela()->r_addend -
-                                         rela_entry->get_rela()->r_offset;
+                    fmt::print("resolving rela: \"{}\"\n", rela_name);
+                    fmt::print("  rela type = 0x{:x}\n", rela_type);
+                    switch (rela_type) {
+                    case R_X86_64_PLT32: {
+                        fmt::print("found relocation R_X86_64_PLT32\n");
+                        // PLT32という名前だがpc relativeとして計算 (St_value + Addend - P)
+                        // P: 再配置されるメモリ位置のアドレス
+                        // ref:
+                        // https://stackoverflow.com/questions/64424692/how-does-the-address-of-r-x86-64-plt32-computed
+                        // TODO:
+                        // (sym->st_value) + (Addend) - (0x80000 + rela->r_offset)
+                        std::shared_ptr<LinkedSymTableEntry> symbol = linked_sym_table.get_symbol_by_name(rela_name);
+                        assert(symbol != nullptr);
+                        i32 resolved_rel32 = symbol->get_sym()->st_value + rela_entry->get_rela()->r_addend -
+                                             (config.get_text_load_addr() + rela_entry->get_rela()->r_offset);
 
-                    fmt::print("  resolved rel32= {}\n", resolved_rel32);
-                    // FIXME:
-                    embed_raw_i32(text_raw, rela_offset, resolved_rel32);
-                } break;
-                default: {
-                    fmt::print("  Not implemented: rela type = 0x{:x}\n", rela_type);
-                    exit(1);
-                } break;
+                        fmt::print("  resolved rel32= {}\n", resolved_rel32);
+                        // FIXME:
+                        embed_raw_i32(text_raw, rela_offset + text_offset_map[obj->get_filename()], resolved_rel32);
+                    } break;
+                    default: {
+                        fmt::print("  Not implemented: rela type = 0x{:x}\n", rela_type);
+                        exit(1);
+                    } break;
+                    }
                 }
             }
         }
@@ -339,14 +363,15 @@ class Linker {
 
         // .text
         fmt::print("creating .text section\n");
-        Section text_section = Section(Utils::create_dummy_sheader_text(27, 0x1, config.get_text_load_addr()));
+        Section text_section = Section(Utils::create_dummy_sheader_text(27, 1, config.get_text_load_addr()));
         // NOTE: relocationはobjのSectionでin-placeに行うので、このタイミングでrawを取る
         text_section.set_raw(text_raw);
         sections.push_back(text_section);
 
         // .symtab
         fmt::print("creating .symtab section\n");
-        Section symtab_section = Section(Utils::create_dummy_sheader_symtab(1, 8));
+        Section symtab_section =
+            Section(Utils::create_dummy_sheader_symtab(1, 8, 3, linked_sym_table.get_local_symbol_num()));
         symtab_section.set_raw(linked_sym_table.to_symtab_section_body());
         sections.push_back(symtab_section);
 
@@ -408,7 +433,6 @@ class Linker {
         fmt::print("finalize elf header\n");
         u64 sheader_start_offset = first_section_start_offset + dist_from_sections_start_to_sections_end;
         fmt::print("start of section header: 0x{:x} = {}\n", sheader_start_offset, sheader_start_offset);
-        // TODO: .text内の_startのオフセット + 0x8000とする
         Utils::finalize_eheader(&eheader, _start_addr, 1, sections.size(), sheader_start_offset);
         // とりあえず、.textセクションのみロードする
         fmt::print("finalize program header\n");
@@ -416,7 +440,7 @@ class Linker {
     }
 
   private:
-    std::shared_ptr<Myld::Parse::Elf> obj;
+    std::vector<std::shared_ptr<Myld::Parse::Elf>> objs;
     Config config;
     LinkedSymTable linked_sym_table;
     std::map<ObjFileName, u64> text_offset_map;

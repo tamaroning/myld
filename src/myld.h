@@ -18,6 +18,7 @@ template <typename T> std::vector<u8> to_bytes(T data) {
     return v;
 }
 
+// reference to `std::vector<u8>`. this structure can be indexed
 class Raw {
   public:
     Raw(std::shared_ptr<const std::vector<u8>> raw) : raw(raw), offset(0), size(raw->size()) {}
@@ -31,6 +32,7 @@ class Raw {
 
     u8 *to_pointer() const { return (u8 *)&(*raw)[offset]; }
 
+    // copy data to a new vector and return it
     std::vector<u8> to_vec() {
         std::vector<u8> v1;
         v1.reserve(size);
@@ -39,6 +41,8 @@ class Raw {
         }
         return v1;
     }
+
+    u64 get_size() const { return size; }
 
   private:
     Raw(std::shared_ptr<const std::vector<u8>> raw, u64 offset, u64 size) : raw(raw), offset(offset), size(size) {}

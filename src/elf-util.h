@@ -144,5 +144,16 @@ static std::shared_ptr<Elf64_Shdr> create_dummy_sheader_symtab(u32 name_index, E
     });
 }
 
+static Elf64_Sym create_null_sym() {
+    return Elf64_Sym{
+        .st_name = 0,  // "\0"
+        .st_info = 0,  // TODO:
+        .st_other = 0, // TODO:
+        .st_shndx = SHN_UNDEF,
+        .st_value = 0,
+        .st_size = 0,
+    };
+}
+
 } // namespace Utils
 } // namespace Myld

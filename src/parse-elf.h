@@ -18,7 +18,10 @@ namespace Parse {
 
 class SymTableEntry {
   public:
-    SymTableEntry(Raw raw_) : name(std::nullopt), raw(raw_) {}
+    SymTableEntry(Raw raw_) : name(std::nullopt), raw(raw_) {
+        // check size
+        assert(raw_.get_size() == sizeof(Elf64_Sym));
+    }
 
     void set_name(std::string s) { name = s; }
 

@@ -1,4 +1,5 @@
 #include "elf-util.h"
+#include "myld.h"
 #include "parse-elf.h"
 #include <cassert>
 #include <elf.h>
@@ -60,6 +61,51 @@ class Section {
     }
 };
 
+class LinkedSymTableEntry {
+  public:
+    LinkedSymTableEntry(std::string name, std::vector<u8> bytes) {
+        // check data size
+        assert(bytes.size() == sizeof(Elf64_Sym));
+    }
+
+    std::string get_name() const { return name; }
+
+    // clone and return its raw data
+    std::vector<u8> get_bytes() const { return std::vector<u8>(bytes); }
+
+  private:
+    std::string name;
+    std::vector<u8> bytes;
+};
+
+// class represents a new symbol table whose symbols are gathered from multiple object files
+class LinkedSymTable {
+  public:
+    LinkedSymTable() : entries({}) {}
+
+    void init() {
+        // push null symbol as the first symbol
+        auto null_sym_bytes = std::vector<u8>(to_bytes(Utils::create_null_sym()));
+        LinkedSymTableEntry null_sym = LinkedSymTableEntry("", null_sym_bytes);
+        push(std::make_shared<LinkedSymTableEntry>(null_sym));
+    }
+
+    void push(std::shared_ptr<LinkedSymTableEntry> sym_entry) { entries.push_back(sym_entry); }
+
+    // convert to raw section data
+    std::vector<u8> to_vec() {
+        std::vector<u8> bytes;
+        bytes.reserve(entries.size() * sizeof(Elf64_Sym));
+        for (auto entry : entries) {
+            std::vector<u8> entry_bytes = entry->get_bytes();
+            bytes.insert(bytes.end(), entry_bytes.begin(), entry_bytes.end());
+        }
+    }
+
+  private:
+    std::vector<std::shared_ptr<LinkedSymTableEntry>> entries;
+};
+
 class Linker {
   public:
     Linker(std::shared_ptr<Parse::Elf> obj) : obj(obj), config(Config()) {}
@@ -108,6 +154,8 @@ class Linker {
     }
 
     void link() {
+        linked_sym_table.init();
+
         std::shared_ptr<Parse::Section> obj_text_section = obj->get_section_by_name(".text");
         std::vector<u8> text_raw = obj_text_section->get_raw().to_vec();
 
@@ -272,6 +320,7 @@ class Linker {
   private:
     std::shared_ptr<Myld::Parse::Elf> obj;
     Config config;
+    LinkedSymTable linked_sym_table;
 
     // output
     Elf64_Ehdr eheader;

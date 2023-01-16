@@ -5,3 +5,8 @@ void f() {
 
     __builtin_unreachable();
 }
+
+// linked executable should also contain this function
+void f2() {
+    // do nothing
+}

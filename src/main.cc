@@ -23,6 +23,18 @@ int main(int argc, char *argv[]) {
             continue;
         }
 
+        if (std::string(argv[arg_index]) == "-T") {
+            fmt::print("warning: ignored linker script\n");
+            arg_index += 2;
+            continue;
+        }
+
+        if (std::string(argv[arg_index]) == "-nostdlib") {
+            fmt::print("warning: ignored -nostdlib\n");
+            arg_index += 1;
+            continue;
+        }
+
         input_filenames.push_back(argv[arg_index]);
         arg_index++;
     }

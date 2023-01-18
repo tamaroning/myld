@@ -202,7 +202,8 @@ class LinkedSymTable {
 
 class Linker {
   public:
-    Linker(std::vector<std::shared_ptr<Parse::Elf>> objs) : objs(objs), config(Config()), text_offset_map() {}
+    Linker(std::vector<std::shared_ptr<Parse::Elf>> objs)
+        : objs(objs), config(Config()), text_offset_map(), _start_addr(std::nullopt) {}
 
     void output(std::string filename) {
         std::ofstream stream = std::ofstream(filename, std::ios::binary | std::ios::trunc);
@@ -312,6 +313,11 @@ class Linker {
             }
         }
 
+        if (!_start_addr.has_value()) {
+            fmt::print("symbol `_start` not found. Could not create executable\n");
+            std::exit(1);
+        }
+
         // resolve rela
         fmt::print("resolving address\n");
         for (auto obj : objs) {
@@ -327,11 +333,8 @@ class Linker {
                     switch (rela_type) {
                     case R_X86_64_PLT32: {
                         fmt::print("found relocation R_X86_64_PLT32\n");
-                        // PLT32という名前だがpc relativeとして計算 (St_value + Addend - P)
-                        // P: 再配置されるメモリ位置のアドレス
                         // ref:
                         // https://stackoverflow.com/questions/64424692/how-does-the-address-of-r-x86-64-plt32-computed
-                        // TODO:
                         // (sym->st_value) + (Addend) - (0x80000 + rela->r_offset)
                         std::shared_ptr<LinkedSymTableEntry> symbol = linked_sym_table.get_symbol_by_name(rela_name);
                         assert(symbol != nullptr);
@@ -351,7 +354,8 @@ class Linker {
             }
         }
 
-        // --------------- build elf ---------------
+        // build elf
+        // TODO: move this to another class
         // elf header
         eheader = Utils::create_dummy_eheader();
         // program header
@@ -433,7 +437,7 @@ class Linker {
         fmt::print("finalize elf header\n");
         u64 sheader_start_offset = first_section_start_offset + dist_from_sections_start_to_sections_end;
         fmt::print("start of section header: 0x{:x} = {}\n", sheader_start_offset, sheader_start_offset);
-        Utils::finalize_eheader(&eheader, _start_addr, 1, sections.size(), sheader_start_offset);
+        Utils::finalize_eheader(&eheader, _start_addr.value(), 1, sections.size(), sheader_start_offset);
         // とりあえず、.textセクションのみロードする
         fmt::print("finalize program header\n");
         Utils::finalize_pheader_load(&pheader, text_section.sheader->sh_offset, text_section.sheader->sh_size);
@@ -446,7 +450,7 @@ class Linker {
     std::map<ObjFileName, u64> text_offset_map;
 
     // resolved address of `_start`
-    u64 _start_addr;
+    std::optional<u64> _start_addr;
 
     // output
     Elf64_Ehdr eheader;

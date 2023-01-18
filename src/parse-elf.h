@@ -154,7 +154,8 @@ class Section {
 class Elf {
   public:
     // create from raw data
-    Elf(std::string filename, std::shared_ptr<const std::vector<u8>> raw_bytes) : filename(filename), raw(Raw(raw_bytes)) {
+    Elf(std::string filename, std::shared_ptr<const std::vector<u8>> raw_bytes)
+        : filename(filename), raw(Raw(raw_bytes)) {
         fmt::print("parsing elf header\n");
         // get elf header
         eheader = (Elf64_Ehdr *)&((*raw_bytes)[0]);
@@ -218,11 +219,17 @@ class Elf {
         auto strtab = get_section_by_name(".strtab");
         auto symtab_entries = sym_table->get_entries();
         for (int i = 0; i < sym_table->get_symbol_num(); i++) {
-            auto name_index = symtab_entries[i]->get_sym()->st_name;
-            // FIXME: とりあえず20
-            std::string symbol_name = std::string(strtab->get_raw().to_pointer() + name_index,
-                                                  strtab->get_raw().to_pointer() + name_index + 20)
-                                          .c_str();
+            std::string symbol_name;
+            if (symtab_entries[i]->get_type() == STT_SECTION) {
+                u16 shndx = symtab_entries[i]->get_sym()->st_shndx;
+                symbol_name = sections[shndx]->get_name();
+            } else {
+                auto name_index = symtab_entries[i]->get_sym()->st_name;
+                // FIXME: とりあえず20
+                symbol_name = std::string(strtab->get_raw().to_pointer() + name_index,
+                                          strtab->get_raw().to_pointer() + name_index + 20)
+                                  .c_str();
+            }
             symtab_entries[i]->set_name(symbol_name);
         }
 

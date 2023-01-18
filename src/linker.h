@@ -6,6 +6,7 @@
 #include <fstream>
 #include <map>
 #include <optional>
+#include <unordered_set>
 
 namespace Myld {
 
@@ -110,25 +111,29 @@ class LinkedSymTable {
   public:
     LinkedSymTable() : entries({}) {}
 
-    std::vector<std::shared_ptr<LinkedSymTableEntry>> get_entries() { return entries; }
+    std::map<std::string, std::shared_ptr<LinkedSymTableEntry>> get_entries() const { return entries; }
 
     // initialize symbol table. Especially, push null symbol to the table
     void init() {
         // push null symbol as the first symbol
         auto null_sym_bytes = std::vector<u8>(to_bytes(Utils::create_null_sym()));
         LinkedSymTableEntry null_sym = LinkedSymTableEntry("", null_sym_bytes, "");
-        push(std::make_shared<LinkedSymTableEntry>(null_sym));
+        insert(std::make_shared<LinkedSymTableEntry>(null_sym));
     }
 
-    void push(std::shared_ptr<LinkedSymTableEntry> sym_entry) { entries.push_back(sym_entry); }
+    bool insert(std::shared_ptr<LinkedSymTableEntry> sym_entry) {
+        // TODO: elaborate
+        bool ret = entries.find(sym_entry->get_name()) == entries.end();
+        entries.insert(std::make_pair(sym_entry->get_name(), sym_entry));
+        return ret;
+    }
 
     std::shared_ptr<LinkedSymTableEntry> get_symbol_by_name(std::string name) const {
-        for (auto entry : entries) {
-            if (entry->get_name() == name) {
-                return entry;
-            }
+        if (entries.find(name) == entries.end()) {
+            return nullptr;
+        } else {
+            return entries.at(name);
         }
-        return nullptr;
     }
 
     // convert to .symtab section data
@@ -143,18 +148,18 @@ class LinkedSymTable {
                 // In first scan, only looks for FILE
                 // In second scan. looks for other symbols
                 // FIXME: buggy. 単純にエントリーをtypeでソートするほうがいい
-                if (i == 0 && entry->get_type() != STT_FILE) {
+                if (i == 0 && entry.second->get_type() != STT_FILE) {
                     continue;
-                } else if (i == 1 && entry->get_type() == STT_FILE) {
+                } else if (i == 1 && entry.second->get_type() == STT_FILE) {
                     continue;
                 }
 
                 // set name index
-                entry->get_sym()->st_name = name_index;
-                std::vector<u8> entry_bytes = entry->get_bytes();
+                entry.second->get_sym()->st_name = name_index;
+                std::vector<u8> entry_bytes = entry.second->get_bytes();
                 bytes.insert(bytes.end(), entry_bytes.begin(), entry_bytes.end());
                 // update name index (plus 1 because of "\0")
-                name_index += entry->get_name().length() + 1;
+                name_index += entry.second->get_name().length() + 1;
             }
         }
         return bytes;
@@ -172,13 +177,13 @@ class LinkedSymTable {
                 // In first scan, only looks for FILE
                 // In second scan. looks for other symbols
                 // FIXME: buggy. 単純にエントリーをtypeでソートするほうがいい
-                if (i == 0 && entry->get_type() != STT_FILE) {
+                if (i == 0 && entry.second->get_type() != STT_FILE) {
                     continue;
-                } else if (i == 1 && entry->get_type() == STT_FILE) {
+                } else if (i == 1 && entry.second->get_type() == STT_FILE) {
                     continue;
                 }
 
-                std::string name = entry->get_name();
+                std::string name = entry.second->get_name();
                 bytes.insert(bytes.end(), name.begin(), name.end());
                 bytes.push_back('\0');
             }
@@ -189,7 +194,7 @@ class LinkedSymTable {
     u64 get_local_symbol_num() {
         u64 ret = 0;
         for (auto entry : entries) {
-            if (entry->get_bind() == STB_LOCAL) {
+            if (entry.second->get_bind() == STB_LOCAL) {
                 ret++;
             }
         }
@@ -197,7 +202,8 @@ class LinkedSymTable {
     }
 
   private:
-    std::vector<std::shared_ptr<LinkedSymTableEntry>> entries;
+    // map from symbol name to symbol
+    std::map<std::string, std::shared_ptr<LinkedSymTableEntry>> entries;
 };
 
 class Linker {
@@ -255,25 +261,36 @@ class Linker {
         // push all symbols to linked symbol table
         for (auto obj : objs) {
             for (auto sym_entry : obj->get_sym_table().value().get_entries()) {
-
-                if (sym_entry->get_type() == STT_NOTYPE && sym_entry->get_bind() == STB_LOCAL &&
-                    sym_entry->get_name() == "") {
-                    // null symbol. do nothing here
-                    continue;
+                switch (sym_entry->get_type()) {
+                case STT_NOTYPE: {
+                    // null or symbol defined in another file
+                } break;
+                case STT_SECTION: {
+                    if (sym_entry->get_name() == ".rodata") {
+                        // TODO: ここで指定されたセクションだけrodataをあつめればいいっぽい
+                    }
+                } break;
+                default: {
+                    // FIXME: ２つのファイルにvoid foo(); が含まれていたとき、シンボルを二重に登録してしまう
+                    // vectorの代わりにhash setを使う
+                    auto sym = std::make_shared<LinkedSymTableEntry>(
+                        LinkedSymTableEntry::from(sym_entry, obj->get_filename()));
+                    // insert symbol
+                    if (!linked_sym_table.insert(sym)) {
+                        // duplicated symbol
+                        fmt::print("found duplicated symbol: \"{}\"\n", sym->get_name());
+                        std::exit(1);
+                    }
+                } break;
                 }
-                // FIXME: ２つのファイルにvoid foo(); が含まれていたとき、シンボルを二重に登録してしまう
-                // vectorの代わりにhash setを使う
-                auto sym =
-                    std::make_shared<LinkedSymTableEntry>(LinkedSymTableEntry::from(sym_entry, obj->get_filename()));
-                linked_sym_table.push(sym);
             }
         }
 
         // debug
         // dump symbols
-        for (auto symbol : linked_sym_table.get_entries()) {
-            fmt::print("linked sym table:\n");
-            fmt::print(" name: \"{}\"\n", symbol->get_name());
+        fmt::print("linked sym table:\n");
+        for (auto &[symbol_name, symbol] : linked_sym_table.get_entries()) {
+            fmt::print(" name: \"{}\"\n", symbol_name);
         }
 
         // Need to decide layout of `.text` here
@@ -288,6 +305,7 @@ class Linker {
 
         // Need to decide layout of `.rodata` here
         // Generate .text section by just concatinating all .rodata sections (alignment = 1byte)
+        // TODO: STT_SECTIONかつ名前が.rodataであるシンボルが含まれているセクションのrodataだけ集めればいいっぽい
         std::vector<u8> rodata_raw({});
         for (auto obj : objs) {
             std::shared_ptr<Parse::Section> obj_rodata_section = obj->get_section_by_name(".rodata");
@@ -299,22 +317,22 @@ class Linker {
         }
 
         // resolve symbol address
-        for (auto entry : linked_sym_table.get_entries()) {
-            switch (entry->get_type()) {
+        for (auto &[symbol_name, symbol] : linked_sym_table.get_entries()) {
+            switch (symbol->get_type()) {
             case STT_NOTYPE:
                 break;
             case STT_FILE:
                 break;
             case STT_FUNC: {
-                u64 resolved_addr = entry->get_sym()->st_value + config.get_text_load_addr() +
-                                    layout[obj_and_section(entry->get_obj_file_name(), ".text")];
-                entry->get_sym()->st_value = resolved_addr;
-                if (entry->get_name() == "_start") {
+                u64 resolved_addr = symbol->get_sym()->st_value + config.get_text_load_addr() +
+                                    layout[obj_and_section(symbol->get_obj_file_name(), ".text")];
+                symbol->get_sym()->st_value = resolved_addr;
+                if (symbol_name == "_start") {
                     _start_addr = resolved_addr;
                 }
             } break;
             default: {
-                fmt::print("Not implemented: symbol type = 0x{:x}\n", entry->get_type());
+                fmt::print("Not implemented: symbol type = 0x{:x}\n", symbol->get_type());
                 exit(1);
             } break;
             }

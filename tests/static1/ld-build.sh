@@ -1,4 +1,4 @@
-cd `dirname $0`
+cd $(dirname $0)
 
 LD="ld"
 
@@ -10,4 +10,4 @@ as -c b.s -o b.o --noexecstack
 
 $LD a.o b.o -o ld-a.out -T static1.ld -nostdlib
 
-chmod +x ld-a.out 2> /dev/null
+chmod +x ld-a.out 2>/dev/null

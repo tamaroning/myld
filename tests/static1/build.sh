@@ -1,4 +1,4 @@
-cd `dirname $0`
+cd $(dirname $0)
 
 LD="../../build/myld"
 
@@ -8,6 +8,6 @@ cc b.c -S -o b.s -m64 -fno-asynchronous-unwind-tables -g0
 as -c a.s -o a.o --noexecstack
 as -c b.s -o b.o --noexecstack
 
-$LD a.o b.o -o myld-a.out > bulid.log
+$LD a.o b.o -o myld-a.out >bulid.log
 
-chmod +x myld-a.out 2> /dev/null
+chmod +x myld-a.out 2>/dev/null

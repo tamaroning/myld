@@ -36,6 +36,7 @@ tests which should pass:
 
 tests which should fail
 - static2
+- static3
 
 # Todo
 - [x] executableの出力

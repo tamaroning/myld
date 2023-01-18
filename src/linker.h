@@ -255,26 +255,25 @@ class Linker {
         // push all symbols to linked symbol table
         for (auto obj : objs) {
             for (auto sym_entry : obj->get_sym_table().value().get_entries()) {
-                u8 sym_type = sym_entry->get_type();
 
-                switch (sym_type) {
-                case STT_NOTYPE: {
+                if (sym_entry->get_type() == STT_NOTYPE && sym_entry->get_bind() == STB_LOCAL &&
+                    sym_entry->get_name() == "") {
                     // null symbol. do nothing here
-                } break;
-                // found FILE, FUNC. push them to linked symbol table
-                case STT_FILE:
-                case STT_FUNC: {
-                    // found func symbolP
-                    auto sym = std::make_shared<LinkedSymTableEntry>(
-                        LinkedSymTableEntry::from(sym_entry, obj->get_filename()));
-                    linked_sym_table.push(sym);
-                } break;
-                default: {
-                    fmt::print("Not implemented: symbol type = 0x{:x}\n", sym_type);
-                    exit(1);
-                } break;
+                    continue;
                 }
+                // FIXME: ２つのファイルにvoid foo(); が含まれていたとき、シンボルを二重に登録してしまう
+                // vectorの代わりにhash setを使う
+                auto sym =
+                    std::make_shared<LinkedSymTableEntry>(LinkedSymTableEntry::from(sym_entry, obj->get_filename()));
+                linked_sym_table.push(sym);
             }
+        }
+
+        // debug
+        // dump symbols
+        for (auto symbol : linked_sym_table.get_entries()) {
+            fmt::print("linked sym table:\n");
+            fmt::print(" name: \"{}\"\n", symbol->get_name());
         }
 
         // Need to decide layout of `.text` here

@@ -3,17 +3,17 @@ function test_exec() {
 
     # check if build with ld finishes successfully
     tests/$1/ld-build.sh
-    tests/$1/ld-a.out
+    tests/$1/ld-a.out > /dev/null
     actual=$?
     if [ $actual != 0 ]; then
         echo -n "build with ld failed (exitcode: $actual)" > /dev/tty
     fi
 
     # build with myld
-    tests/$1/build.sh
+    tests/$1/build.sh 1> tests/$1/build.log 2> /dev/null
     if [ $? != 0 ]; then
-        echo "build failed" > /dev/tty
-        exit 1
+        echo "link failed (See tests/$1/build.log)" > /dev/tty
+        return
     fi
     # execute binary
     tests/$1/myld-a.out
@@ -32,3 +32,5 @@ test_exec "simple1"
 test_exec "simple2"
 test_exec "simple3"
 test_exec "static1"
+test_exec "static2"
+test_exec "static3"

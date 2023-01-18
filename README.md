@@ -27,7 +27,14 @@ You can run `bear -- cmake -- build bulid` to crete compile_commands.json
 This script runs all tests in tests/.
 
 # Status
-All tests in tests/ should pass.
+
+tests which should pass:
+- simple1
+- simple2
+- simple3
+- static1
+tests which should fail
+- static2
 
 # Todo
 - [x] executableの出力

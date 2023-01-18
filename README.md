@@ -33,6 +33,7 @@ tests which should pass:
 - simple2
 - simple3
 - static1
+
 tests which should fail
 - static2
 

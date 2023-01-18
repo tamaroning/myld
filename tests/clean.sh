@@ -1,2 +1,2 @@
-cd $0 2> /dev/null
-rm ./*/*.o ./*/*.out ./*/*.s 2> /dev/null
+cd `dirname $0`
+rm ./*/*.o ./*/*.out ./*/*.log 2> /dev/null

@@ -108,11 +108,6 @@ static std::shared_ptr<Elf64_Shdr> create_dummy_sheader_text(u32 name_index, Elf
     });
 }
 
-static void finalize_sheader(std::shared_ptr<Elf64_Shdr> sheader, Elf64_Off offset) {
-    sheader->sh_offset = offset;
-    assert((sheader->sh_offset % sheader->sh_addralign) == 0);
-}
-
 static std::shared_ptr<Elf64_Shdr> create_dummy_sheader_strtab(u32 name_index, u64 align) {
     return std::make_shared<Elf64_Shdr>(Elf64_Shdr{
         .sh_name = name_index,

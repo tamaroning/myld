@@ -6,4 +6,5 @@ tests/*/*
 !tests/*/*.c
 !tests/*/*.ld
 !tests/*/*.sh
+!tests/*/*.s
 tests/myld-a.out

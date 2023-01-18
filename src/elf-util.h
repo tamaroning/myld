@@ -61,7 +61,9 @@ static void finalize_eheader(Elf64_Ehdr *eheader, Elf64_Addr entry_point_addr, u
 static Elf64_Phdr create_dummy_pheader_load(u64 vaddr, u64 paddr, u64 align) {
     Elf64_Phdr program_header_entry_load = Elf64_Phdr{
         .p_type = PT_LOAD,
-        .p_flags = PF_R | PF_X,
+        // TODO: ldは特定のセクションの有無に応じて変えている
+        // e.g. ldでは .textのみならRX. .text & .rodataならRWX.
+        .p_flags = PF_R | PF_W | PF_X,
         .p_offset = DUMMY,
         .p_vaddr = vaddr,
         .p_paddr = paddr,
@@ -72,10 +74,10 @@ static Elf64_Phdr create_dummy_pheader_load(u64 vaddr, u64 paddr, u64 align) {
     return program_header_entry_load;
 }
 
-static void finalize_pheader_load(Elf64_Phdr *pheader, u64 text_offset, u64 text_size) {
-    pheader->p_offset = text_offset;
-    pheader->p_filesz = text_size;
-    pheader->p_memsz = text_size;
+static void finalize_pheader_load(Elf64_Phdr *pheader, u64 offset, u64 size) {
+    pheader->p_offset = offset;
+    pheader->p_filesz = size; // TODO: correct?
+    pheader->p_memsz = size;  // TODO: correct>
 }
 
 static std::shared_ptr<Elf64_Shdr> create_sheader_null() {
@@ -108,6 +110,21 @@ static std::shared_ptr<Elf64_Shdr> create_dummy_sheader_text(u32 name_index, Elf
     });
 }
 
+static std::shared_ptr<Elf64_Shdr> create_dummy_sheader_rodata(u32 name_index, Elf64_Xword align, Elf64_Addr addr) {
+    return std::make_shared<Elf64_Shdr>(Elf64_Shdr{
+        .sh_name = name_index,
+        .sh_type = SHT_PROGBITS,
+        .sh_flags = SHF_ALLOC,
+        .sh_addr = addr,
+        .sh_offset = DUMMY,
+        .sh_size = DUMMY,
+        .sh_link = 0,
+        .sh_info = 0,
+        .sh_addralign = align,
+        .sh_entsize = 0,
+    });
+}
+
 static std::shared_ptr<Elf64_Shdr> create_dummy_sheader_strtab(u32 name_index, u64 align) {
     return std::make_shared<Elf64_Shdr>(Elf64_Shdr{
         .sh_name = name_index,
@@ -123,7 +140,8 @@ static std::shared_ptr<Elf64_Shdr> create_dummy_sheader_strtab(u32 name_index, u
     });
 }
 
-static std::shared_ptr<Elf64_Shdr> create_dummy_sheader_symtab(u32 name_index, Elf64_Xword align, Elf64_Word strtab_sh_index, Elf64_Word local_sym_num) {
+static std::shared_ptr<Elf64_Shdr> create_dummy_sheader_symtab(u32 name_index, Elf64_Xword align,
+                                                               Elf64_Word strtab_sh_index, Elf64_Word local_sym_num) {
     return std::make_shared<Elf64_Shdr>(Elf64_Shdr{
         .sh_name = name_index,
         .sh_type = SHT_SYMTAB,

@@ -64,13 +64,13 @@ class Section {
 
 class LinkedSymTableEntry {
   public:
-    LinkedSymTableEntry(std::string name, std::vector<u8> bytes, ObjFileName obj_file_name)
+    LinkedSymTableEntry(std::string name, std::vector<u8> bytes, std::string obj_file_name)
         : name(name), bytes(bytes), obj_file_name(obj_file_name) {
         // check data size
         assert(bytes.size() == sizeof(Elf64_Sym));
     }
 
-    static LinkedSymTableEntry from(std::shared_ptr<Parse::SymTableEntry> entry, ObjFileName obj_file_name) {
+    static LinkedSymTableEntry from(std::shared_ptr<Parse::SymTableEntry> entry, std::string obj_file_name) {
         LinkedSymTableEntry linked_sym(entry->get_name(), entry->get_raw().to_vec(), obj_file_name);
         // name indexは意味をなさなくなるので0にセットしておく
         linked_sym.get_sym()->st_name = 0;
@@ -97,7 +97,7 @@ class LinkedSymTableEntry {
     std::string name;
     std::vector<u8> bytes;
     // "" in case of null symbol
-    ObjFileName obj_file_name;
+    std::string obj_file_name;
 
     const Elf64_Sym *get_const_sym() const {
         // maybe unsafe operation?
@@ -203,7 +203,7 @@ class LinkedSymTable {
 class Linker {
   public:
     Linker(std::vector<std::shared_ptr<Parse::Elf>> objs)
-        : objs(objs), config(Config()), text_offset_map(), _start_addr(std::nullopt) {}
+        : objs(objs), config(Config()), layout(), _start_addr(std::nullopt) {}
 
     void output(std::string filename) {
         std::ofstream stream = std::ofstream(filename, std::ios::binary | std::ios::trunc);
@@ -250,10 +250,6 @@ class Linker {
 
     void link() {
         linked_sym_table.init();
-        fmt::print("link start\n");
-
-        // std::shared_ptr<Parse::Section> obj_text_section = obj->get_section_by_name(".text");
-        // std::vector<u8> text_raw = obj_text_section->get_raw().to_vec();
 
         fmt::print("collecting symbols\n");
         // push all symbols to linked symbol table
@@ -281,14 +277,26 @@ class Linker {
             }
         }
 
-        // decide layout of `.text`
-        // generate .text section by just concatinating all .text sections (alignment = 1byte)
+        // Need to decide layout of `.text` here
+        // Generate .text section by just concatinating all .text sections (alignment = 1byte)
         std::vector<u8> text_raw({});
         for (auto obj : objs) {
             std::shared_ptr<Parse::Section> obj_text_section = obj->get_section_by_name(".text");
-            std::vector<u8> obj_text_raw = obj_text_section->get_raw().to_vec();
-            text_offset_map[obj->get_filename()] = text_raw.size();
+            Raw obj_text_raw = obj_text_section->get_raw();
+            layout[obj_and_section(obj->get_filename(), ".text")] = text_raw.size();
             text_raw.insert(text_raw.end(), obj_text_raw.begin(), obj_text_raw.end());
+        }
+
+        // Need to decide layout of `.rodata` here
+        // Generate .text section by just concatinating all .rodata sections (alignment = 1byte)
+        std::vector<u8> rodata_raw({});
+        for (auto obj : objs) {
+            std::shared_ptr<Parse::Section> obj_rodata_section = obj->get_section_by_name(".rodata");
+            if (obj_rodata_section != nullptr) {
+                Raw obj_rodata_raw = obj_rodata_section->get_raw();
+                layout[obj_and_section(obj->get_filename(), ".rodata")] = rodata_raw.size();
+                rodata_raw.insert(rodata_raw.end(), obj_rodata_raw.begin(), obj_rodata_raw.end());
+            }
         }
 
         // resolve symbol address
@@ -300,7 +308,7 @@ class Linker {
                 break;
             case STT_FUNC: {
                 u64 resolved_addr = entry->get_sym()->st_value + config.get_text_load_addr() +
-                                    text_offset_map[entry->get_obj_file_name()];
+                                    layout[obj_and_section(entry->get_obj_file_name(), ".text")];
                 entry->get_sym()->st_value = resolved_addr;
                 if (entry->get_name() == "_start") {
                     _start_addr = resolved_addr;
@@ -343,7 +351,8 @@ class Linker {
 
                         fmt::print("  resolved rel32= {}\n", resolved_rel32);
                         // FIXME:
-                        embed_raw_i32(text_raw, rela_offset + text_offset_map[obj->get_filename()], resolved_rel32);
+                        embed_raw_i32(text_raw, rela_offset + layout[obj_and_section(obj->get_filename(), ".text")],
+                                      resolved_rel32);
                     } break;
                     default: {
                         fmt::print("  Not implemented: rela type = 0x{:x}\n", rela_type);
@@ -368,9 +377,19 @@ class Linker {
         // .text
         fmt::print("creating .text section\n");
         Section text_section = Section(Utils::create_dummy_sheader_text(27, 1, config.get_text_load_addr()));
-        // NOTE: relocationはobjのSectionでin-placeに行うので、このタイミングでrawを取る
         text_section.set_raw(text_raw);
         sections.push_back(text_section);
+
+        // .rodata
+        std::optional<Section> rodata_section = std::nullopt;
+        if (rodata_raw.size() > 0) {
+            fmt::print("creating .rodata section\n");
+            // TODO: アドレスの計算方法をもっとスマートにしたい
+            rodata_section = Section(
+                Utils::create_dummy_sheader_rodata(33, 1, config.get_text_load_addr() + text_section.sheader->sh_size));
+            rodata_section.value().set_raw(rodata_raw);
+            sections.push_back(rodata_section.value());
+        }
 
         // .symtab
         fmt::print("creating .symtab section\n");
@@ -394,6 +413,7 @@ class Linker {
             '.',  's', 't', 'r', 't', 'a',  'b', '\0',            //.strtab
             '.',  's', 'h', 's', 't', 'r',  't', 'a',  'b', '\0', //.shstrtab
             '.',  't', 'e', 'x', 't', '\0',                       // .text
+            '.',  'r', 'o', 'd', 'a', 't',  'a', '\0',            // .rodata
         };
         shstrtab_section.set_raw(shstrtab_raw);
         sections.push_back(shstrtab_section);
@@ -440,14 +460,16 @@ class Linker {
         Utils::finalize_eheader(&eheader, _start_addr.value(), 1, sections.size(), sheader_start_offset);
         // とりあえず、.textセクションのみロードする
         fmt::print("finalize program header\n");
-        Utils::finalize_pheader_load(&pheader, text_section.sheader->sh_offset, text_section.sheader->sh_size);
+        u64 load_offset = text_section.sheader->sh_offset;
+        u64 load_size = text_section.sheader->sh_size;
+        Utils::finalize_pheader_load(&pheader, load_offset, load_size);
     }
 
   private:
     std::vector<std::shared_ptr<Myld::Parse::Elf>> objs;
     Config config;
     LinkedSymTable linked_sym_table;
-    std::map<ObjFileName, u64> text_offset_map;
+    std::map<ObjAndSection, u64> layout;
 
     // resolved address of `_start`
     std::optional<u64> _start_addr;

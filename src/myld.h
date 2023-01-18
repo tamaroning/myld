@@ -2,7 +2,9 @@
 #define MYLD_H
 #include <cassert>
 #include <cstdint>
+#include <iterator>
 #include <memory>
+#include <utility>
 #include <vector>
 
 typedef uint8_t u8;
@@ -11,7 +13,9 @@ typedef uint64_t u64;
 typedef int32_t i32;
 typedef int64_t i64;
 
-typedef std::string ObjFileName;
+// (obj_filename, section_name) e.g. ("a.o", ".text")
+typedef std::pair<std::string, std::string> ObjAndSection;
+ObjAndSection obj_and_section(std::string filename, std::string section) { return std::make_pair(filename, section); }
 
 template <typename T> std::vector<u8> to_bytes(T data) {
     const char *ptr = reinterpret_cast<char *>(&data);
@@ -44,6 +48,10 @@ class Raw {
     }
 
     u64 get_size() const { return size; }
+
+    std::vector<u8>::const_iterator begin() const { return raw->begin() + offset; }
+
+    std::vector<u8>::const_iterator end() const { return raw->begin() + offset + size; }
 
   private:
     Raw(std::shared_ptr<const std::vector<u8>> raw, u64 offset, u64 size) : raw(raw), offset(offset), size(size) {}

@@ -241,7 +241,7 @@ class Elf {
         }
     }
 
-    ObjFileName get_filename() const { return filename; }
+    std::string get_filename() const { return filename; }
 
     u8 get_elf_type() { return eheader->e_type; }
 

@@ -2,8 +2,8 @@ function test_exec() {
     echo -n "test: $1 ... " > /dev/tty
 
     # check if build with ld finishes successfully
-    tests/$1/ld-build.sh
-    tests/$1/ld-a.out > /dev/null
+    tests/$1/build.sh /usr/bin/ld
+    tests/$1/a.out > /dev/null
     actual=$?
     if [ $actual != 0 ]; then
         echo -n "build with ld failed (exitcode: $actual)" > /dev/tty
@@ -16,7 +16,7 @@ function test_exec() {
         return
     fi
     # execute binary
-    tests/$1/myld-a.out
+    tests/$1/myld-a.out build/myld
     actual=$?
     # check result
     if [ $actual == 0 ]; then

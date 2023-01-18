@@ -9,8 +9,6 @@
 const char *kOutputFileName = "myld-a.out";
 
 int main(int argc, char *argv[]) {
-    fmt::print("myld version {}\n", MYLD_VERSION);
-
     std::string output_filename = kOutputFileName;
     std::vector<std::string> input_filenames({});
 
@@ -30,12 +28,15 @@ int main(int argc, char *argv[]) {
     }
 
     if (input_filenames.size() == 0) {
-        fmt::print("Usage: myld [options] <filename>\n");
-        return 0;
+        fmt::print("myld (version {})\n", MYLD_VERSION);
+        fmt::print("Usage: myld [options] <filename> ...\n");
+        fmt::print("Options:\n");
+        fmt::print("  -o filename\tSet output filename\n");
+        std::exit(0);
     }
 
     fmt::print("input file: ");
-    for (auto name: input_filenames) {
+    for (auto name : input_filenames) {
         fmt::print("{}, ", name);
     }
     fmt::print("\n");
@@ -43,7 +44,7 @@ int main(int argc, char *argv[]) {
     fmt::print("output file: {}\n", output_filename);
 
     std::vector<std::shared_ptr<Myld::Parse::Elf>> objs({});
-    for(auto obj_filename: input_filenames) {
+    for (auto obj_filename : input_filenames) {
         Myld::Elf::Reader reader(obj_filename);
         reader.dump();
         objs.push_back(reader.get_elf());

@@ -17,24 +17,29 @@ You can run `bear -- cmake -- build bulid` to crete compile_commands.json
 
 # Run
 ```
-./build/myld <OBJECT FILE>
+./build/myld [OPTIONS] <OBJECT FILE1> [<OBJECT FILE2> ...]
 ```
 
 # Test
 ```
 ./test.sh
 ```
+This script runs all tests in tests/.
+
+# Status
+All tests in tests/ should pass.
 
 # Todo
 - [x] executableの出力
 - [ ] relocatableの出力
 - [x] .strtabと.symtab生成
+- [ ] linker script
 
 ### static link
 - [x] 一つのオブジェクトファイルの入力
-- [x] 複数のオブジェクトファイルの入力
-- [x] 単一オブジェクトファイルのリロケーション (PLT32)
+- [x] オブジェクトファイルのリロケーション (PLT32)
 - [x] 複数オブジェクトファイルのリロケーション (PLT32)
+- [ ] .bss
 
 ### dynamic link
 - [ ] PLT, GOTを生成

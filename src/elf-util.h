@@ -1,6 +1,7 @@
-#include "debug.h"
+#ifndef ELF_UTIL_H
+#define ELF_UTIL_H
+
 #include "myld.h"
-#include <cassert>
 #include <elf.h>
 #include <memory>
 
@@ -185,3 +186,5 @@ static Elf64_Sym create_null_sym() {
 
 } // namespace Utils
 } // namespace Myld
+
+#endif

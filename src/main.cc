@@ -64,7 +64,6 @@ int main(int argc, char *argv[]) {
 
     Myld::Linker linker = Myld::Linker(objs);
     linker.link();
-    linker.output(output_filename);
 
     fmt::print("generated {}\n", output_filename);
 

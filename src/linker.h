@@ -23,7 +23,7 @@ class Linker {
     Linker(std::vector<std::string> input_files, std::string output_file) : ctx(Context(input_files, output_file)) {}
 
     void link() {
-        // TODO: parse here
+        ctx.init();
         ctx.parse_objects();
 
         fmt::print("collecting symbols\n");
@@ -40,8 +40,6 @@ class Linker {
                     }
                 } break;
                 default: {
-                    // FIXME: ２つのファイルにvoid foo(); が含まれていたとき、シンボルを二重に登録してしまう
-                    // vectorの代わりにhash setを使う
                     auto sym = std::make_shared<LinkedSymTableEntry>(
                         LinkedSymTableEntry::from(sym_entry, obj->get_filename()));
                     // insert symbol
@@ -92,7 +90,6 @@ class Linker {
         }
 
         // decide layout of `.data` here
-        // TODO: .shstrtabを自動生成するようにしたい
 
         // resolve symbol address
         for (auto &[symbol_name, symbol] : ctx.linked_sym_table.get_entries()) {
@@ -166,52 +163,6 @@ class Linker {
 
   private:
     Context ctx;
-    /*
-    void create_section(std::string section_name, std::vector<u8> raw, u64 addr) {
-        fmt::print("creating section {}\n", section_name);
-        u32 type = 0;
-        u64 flags = 0;
-        // addr provided by arg
-        u32 link = 0;
-        u32 info = 0;
-        u64 addralign = 0;
-        u64 entsize = 0;
-        if (section_name == "") {
-            // do nothing
-        } else if (section_name == ".symtab") {
-            type = SHT_SYMTAB;
-            addralign = 8;
-            entsize = sizeof(Elf64_Sym);
-            link = 3;                                       // TODO: strtabのindex
-            info = linked_sym_table.get_local_symbol_num(); // TODO: 最後のローカルシンボルのindex + 1とするのが正しい
-        } else if (section_name == ".strtab" || section_name == ".shstrtab") {
-            type = SHT_STRTAB;
-            addralign = 1;
-        } else if (section_name == ".text") {
-            type = SHT_PROGBITS;
-            addralign = 1;
-            flags = SHF_ALLOC | SHF_EXECINSTR; // AX
-        } else if (section_name == ".rodata") {
-            type = SHT_PROGBITS;
-            addralign = 1;
-            flags = SHF_ALLOC; // A
-        } else if (section_name.starts_with(".data")) {
-            type = SHT_PROGBITS;
-            addralign = 1;
-            flags = SHF_WRITE | SHF_ALLOC; // WA
-        } else {
-            fmt::print("unknown section name {}\n", section_name);
-            std::exit(1);
-        }
-        auto sheader =
-            Utils::create_dummy_sheader(shstrtab_content.size(), type, flags, addr, link, info, addralign, entsize);
-        shstrtab_content += section_name + "\0"s;
-
-        Section section = Section(sheader);
-        section.set_raw(raw);
-        sections.push_back(section);
-    }
-    */
 };
 
 } // namespace Myld

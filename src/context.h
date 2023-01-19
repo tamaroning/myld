@@ -156,7 +156,7 @@ class LinkedSymTable {
         return bytes;
     }
 
-    u64 get_local_symbol_num() {
+    u64 get_local_symbol_num() const {
         u64 ret = 0;
         for (auto entry : entries) {
             if (entry.second->get_bind() == STB_LOCAL) {
@@ -174,7 +174,9 @@ class LinkedSymTable {
 class Context {
   public:
     Context(std::vector<std::string> input_filenames, std::string output_filename)
-        : objs({}), config(Config(input_filenames, output_filename)), layout(), _start_addr(std::nullopt) {
+        : objs({}), config(Config(input_filenames, output_filename)), layout(), _start_addr(std::nullopt) {}
+
+    void init() {
         linked_sym_table.init();
     }
 

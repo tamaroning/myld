@@ -157,7 +157,7 @@ class Linker {
             }
         }
         // TODO: fix
-        Build::Builder::build_and_output(ctx, "myld-a.out");
+        ctx.build_and_output("myld-a.out");
     }
 
   private:

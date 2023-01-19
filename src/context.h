@@ -179,6 +179,8 @@ class Context {
     std::optional<u64> _start_addr;
 
     std::map<std::string, std::vector<u8>> section_raws;
+
+    void build_and_output(std::string filename);
 };
 
 } // namespace Myld

@@ -11,12 +11,16 @@ typedef uint8_t u8;
 typedef uint16_t u16;
 typedef uint32_t u32;
 typedef uint64_t u64;
+typedef int8_t i8;
+typedef int16_t i16;
 typedef int32_t i32;
 typedef int64_t i64;
 
 // (obj_filename, section_name) e.g. ("a.o", ".text")
 typedef std::pair<std::string, std::string> ObjAndSection;
-ObjAndSection obj_and_section(std::string filename, std::string section) { return std::make_pair(filename, section); }
+static ObjAndSection obj_and_section(std::string filename, std::string section) {
+    return std::make_pair(filename, section);
+}
 
 template <typename T> std::vector<u8> to_bytes(T data) {
     const char *ptr = reinterpret_cast<char *>(&data);

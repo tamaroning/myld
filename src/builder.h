@@ -57,12 +57,6 @@ class Builder {
   public:
     Builder() {}
 
-    static void build_and_output(Context ctx, std::string filename) {
-        Builder builder = Builder();
-        builder.build(ctx);
-        builder.output(filename);
-    }
-
     void output(std::string filename) {
         std::ofstream stream = std::ofstream(filename, std::ios::binary | std::ios::trunc);
         u64 current_offset = 0;

@@ -8,7 +8,7 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall")
 project(myld VERSION 0.1)
 
 # エントリーポイント
-add_executable(myld src/main.cc)
+add_executable(myld src/main.cc src/builder.cc)
 
 # config.hがbuild/に生成されるのでリンクする
 configure_file(config.h.in config.h)

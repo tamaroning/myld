@@ -6,6 +6,7 @@
 #include <elf.h>
 #include <fmt/core.h>
 #include <fmt/format.h>
+#include <map>
 #include <memory>
 #include <optional>
 #include <string>
@@ -155,7 +156,7 @@ class Elf {
   public:
     // create from raw data
     Elf(std::string filename, std::shared_ptr<const std::vector<u8>> raw_bytes)
-        : filename(filename), raw(Raw(raw_bytes)) {
+        : filename(filename), raw(Raw(raw_bytes)), sections({}), sym_table(std::nullopt), relas({}) {
         fmt::print("parsing elf header\n");
         // get elf header
         eheader = (Elf64_Ehdr *)&((*raw_bytes)[0]);
@@ -176,25 +177,16 @@ class Elf {
             section_headers.push_back((Elf64_Shdr *)raw.get_sub(sheader_elem_offset, sizeof(Elf64_Ehdr)).to_pointer());
         }
 
-        // get section data
+        // get raw data of section body
         fmt::print("parsing elf body\n");
         for (int i = 0; i < get_section_num(); i++) {
             fmt::print("parsing sections[{}]\n", i);
             Elf64_Shdr *section_header = section_headers[i];
             Raw section_raw = raw.get_sub(section_header->sh_offset, section_header->sh_size);
 
-            // found symbol table
-            if (section_header->sh_type == SHT_SYMTAB) {
-                sym_table = std::make_optional<SymTable>(SymTable(section_header, section_raw));
-            } else if (section_header->sh_type == SHT_RELA) {
-                rela_text = std::make_optional<RelaText>(RelaText(section_header, section_raw));
-            }
-
             std::shared_ptr<Section> section = std::make_shared<Section>(Section(section_header, section_raw));
             sections.push_back(section);
         }
-        // checks if parser found symbol table
-        assert(sym_table != std::nullopt);
 
         // get section name from .shstrtab
         Raw shstrtab_raw = sections[eheader->e_shstrndx]->get_raw();
@@ -205,13 +197,26 @@ class Elf {
             sections[i]->set_name(name.c_str());
         }
 
+        // parse section data
+        for (auto section : sections) {
+            Elf64_Shdr *sheader = section->get_header();
+            // found symbol table
+            if (sheader->sh_type == SHT_SYMTAB) {
+                assert(section->get_name() == ".symtab");
+                sym_table = std::make_optional<SymTable>(SymTable(sheader, section->get_raw()));
+            } else if (sheader->sh_type == SHT_RELA) {
+                std::string section_name = section->get_name();
+                assert(section_name.starts_with(".rela"));
+                std::string referent_section_name(section_name.begin() + 5, section_name.end());
+
+                relas[referent_section_name] = std::make_shared<RelaText>(RelaText(sheader, section->get_raw()));
+            }
+        }
+
         // make sure elf contains .symtab, .strtab, and .shstrtab
         assert(get_section_by_name(".symtab") != nullptr && sym_table.has_value());
         assert(get_section_by_name(".strtab") != nullptr);
         assert(get_section_by_name(".shstrtab") != nullptr);
-        // make sure .rela.text is parsed correctly
-        assert((get_section_by_name(".rela.text") == nullptr && !rela_text.has_value()) ||
-               (get_section_by_name(".rela.text") != nullptr && rela_text.has_value()));
 
         fmt::print("looking up symbol names\n");
 
@@ -234,10 +239,10 @@ class Elf {
         }
 
         // lookup name of each rela entry
-        if (rela_text.has_value()) {
+        for (auto &[_, rela] : relas) {
             auto symtab = get_section_by_name(".symtab");
-            auto rela_entries = rela_text->get_entries();
-            for (int i = 0; i < rela_text->get_reloc_num(); i++) {
+            auto rela_entries = rela->get_entries();
+            for (int i = 0; i < rela->get_reloc_num(); i++) {
                 // FIXME: これってほんとにsymbol table entryのインデックスを表してるの?
                 auto symbol_index = rela_entries[i]->get_sym();
                 // FIXME: とりあえず20
@@ -274,7 +279,12 @@ class Elf {
 
     std::optional<SymTable> get_sym_table() const { return sym_table; }
 
-    std::optional<RelaText> get_rela_text() const { return rela_text; }
+    std::shared_ptr<RelaText> get_rela_by_name(std::string referent_section) const {
+        if (auto iter = relas.find(referent_section); iter != relas.end()) {
+            return iter->second;
+        }
+        return nullptr;
+    }
 
     void dump() {
         // dump elf header
@@ -302,9 +312,10 @@ class Elf {
         }
 
         // dump relocation table (.rela.text)
-        if (rela_text.has_value()) {
-            auto rela_entries = rela_text->get_entries();
-            for (int i = 0; i < rela_text->get_reloc_num(); i++) {
+        for (auto &[referent_section_name, rela] : relas) {
+            fmt::print("relocation info of \"{}\" (.rela{})\n", referent_section_name, referent_section_name);
+            auto rela_entries = rela->get_entries();
+            for (int i = 0; i < rela->get_reloc_num(); i++) {
                 fmt::print("rela[{}]:\n  ", i);
                 fmt::print("name : \"{}\", ", rela_entries[i]->get_name());
                 fmt::print("offset : \"{}\", ", rela_entries[i]->get_rela()->r_offset);
@@ -327,13 +338,11 @@ class Elf {
     std::vector<Elf64_Phdr *> pheader;
     // sections
     std::vector<std::shared_ptr<Section>> sections;
-
     // symbol table
     // this fielf has some value when the elf contains .symtab section
     std::optional<SymTable> sym_table;
-    // symbol table
-    // this fielf has some value when the elf contains .rela.text section
-    std::optional<RelaText> rela_text;
+    // relocation info
+    std::map<std::string, std::shared_ptr<RelaText>> relas;
 };
 
 } // namespace Parse

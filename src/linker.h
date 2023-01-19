@@ -346,9 +346,9 @@ class Linker {
         // resolve rela
         fmt::print("resolving address\n");
         for (auto obj : objs) {
-            if (obj->get_rela_text().has_value()) {
-                Parse::RelaText rela_text = obj->get_rela_text().value();
-                for (auto rela_entry : rela_text.get_entries()) {
+            auto rela_text = obj->get_rela_by_name(".text");
+            if (rela_text != nullptr) {
+                for (auto rela_entry : rela_text->get_entries()) {
                     std::string rela_name = rela_entry->get_name();
                     u32 rela_type = rela_entry->get_type();
                     u64 rela_offset = rela_entry->get_rela()->r_offset;
@@ -358,6 +358,7 @@ class Linker {
                     switch (rela_type) {
                     case R_X86_64_PLT32: {
                         fmt::print("found relocation R_X86_64_PLT32\n");
+                        // ELF spec (L + A - P)
                         // ref:
                         // https://stackoverflow.com/questions/64424692/how-does-the-address-of-r-x86-64-plt32-computed
                         // (sym->st_value) + (Addend) - (0x80000 + rela->r_offset)

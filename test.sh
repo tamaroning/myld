@@ -10,7 +10,7 @@ function test_exec() {
     fi
 
     # build with myld
-    tests/$1/build.sh 1> tests/$1/build.log 2> /dev/null
+    tests/$1/build.sh ../../build/myld 1> tests/$1/build.log 2> /dev/null
     if [ $? != 0 ]; then
         echo "link failed (See tests/$1/build.log)" > /dev/tty
         return

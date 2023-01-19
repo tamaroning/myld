@@ -297,25 +297,31 @@ class Linker {
 
         // decide layout of `.text` here
         // Generate .text section by just concatinating all .text sections (alignment = 1byte)
-        std::vector<u8> text_raw({});
-        for (auto obj : objs) {
-            std::shared_ptr<Parse::Section> obj_text_section = obj->get_section_by_name(".text");
-            Raw obj_text_raw = obj_text_section->get_raw();
-            layout[obj_and_section(obj->get_filename(), ".text")] = text_raw.size();
-            text_raw.insert(text_raw.end(), obj_text_raw.begin(), obj_text_raw.end());
+        {
+            std::vector<u8> text_raw({});
+            for (auto obj : objs) {
+                std::shared_ptr<Parse::Section> obj_text_section = obj->get_section_by_name(".text");
+                Raw obj_text_raw = obj_text_section->get_raw();
+                layout[obj_and_section(obj->get_filename(), ".text")] = text_raw.size();
+                text_raw.insert(text_raw.end(), obj_text_raw.begin(), obj_text_raw.end());
+            }
+            section_raws[".text"] = text_raw;
         }
 
         // decide layout of `.rodata` here
         // Generate .text section by just concatinating all .rodata sections (alignment = 1byte)
         // TODO: STT_SECTIONかつ名前が.rodataであるシンボルが含まれているセクションのrodataだけ集めればいいっぽい
-        std::vector<u8> rodata_raw({});
-        for (auto obj : objs) {
-            std::shared_ptr<Parse::Section> obj_rodata_section = obj->get_section_by_name(".rodata");
-            if (obj_rodata_section != nullptr) {
-                Raw obj_rodata_raw = obj_rodata_section->get_raw();
-                layout[obj_and_section(obj->get_filename(), ".rodata")] = rodata_raw.size();
-                rodata_raw.insert(rodata_raw.end(), obj_rodata_raw.begin(), obj_rodata_raw.end());
+        {
+            std::vector<u8> rodata_raw({});
+            for (auto obj : objs) {
+                std::shared_ptr<Parse::Section> obj_rodata_section = obj->get_section_by_name(".rodata");
+                if (obj_rodata_section != nullptr) {
+                    Raw obj_rodata_raw = obj_rodata_section->get_raw();
+                    layout[obj_and_section(obj->get_filename(), ".rodata")] = rodata_raw.size();
+                    rodata_raw.insert(rodata_raw.end(), obj_rodata_raw.begin(), obj_rodata_raw.end());
+                }
             }
+            section_raws[".rodata"] = rodata_raw;
         }
 
         // decide layout of `.data` here
@@ -374,7 +380,8 @@ class Linker {
 
                         fmt::print("  resolved rel32= {}\n", resolved_rel32);
                         // FIXME:
-                        embed_raw_i32(text_raw, rela_offset + layout[obj_and_section(obj->get_filename(), ".text")],
+                        embed_raw_i32(section_raws[".text"],
+                                      rela_offset + layout[obj_and_section(obj->get_filename(), ".text")],
                                       resolved_rel32);
                     } break;
                     default: {
@@ -400,17 +407,17 @@ class Linker {
         // .text
         fmt::print("creating .text section\n");
         Section text_section = Section(Utils::create_dummy_sheader_text(27, 1, config.get_text_load_addr()));
-        text_section.set_raw(text_raw);
+        text_section.set_raw(section_raws[".text"]);
         sections.push_back(text_section);
 
         // .rodata
         std::optional<Section> rodata_section = std::nullopt;
-        if (rodata_raw.size() > 0) {
+        if (section_raws[".rodata"].size() > 0) {
             fmt::print("creating .rodata section\n");
             // TODO: アドレスの計算方法をもっとスマートにしたい
             rodata_section = Section(
                 Utils::create_dummy_sheader_rodata(33, 1, config.get_text_load_addr() + text_section.sheader->sh_size));
-            rodata_section.value().set_raw(rodata_raw);
+            rodata_section.value().set_raw(section_raws[".rodata"]);
             sections.push_back(rodata_section.value());
         }
 
@@ -495,6 +502,8 @@ class Linker {
 
     // resolved address of `_start`
     std::optional<u64> _start_addr;
+
+    std::map<std::string, std::vector<u8>> section_raws;
 
     // output
     Elf64_Ehdr eheader;

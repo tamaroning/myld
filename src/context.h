@@ -13,10 +13,18 @@ using namespace Myld;
 
 class Config {
   public:
-    Config() : text_load_addr(0x80000) {}
+    Config(std::vector<std::string> input_filenames, std::string output_filename)
+        : input_filenames(input_filenames), output_filename(output_filename), text_load_addr(0x80000) {}
+
+    std::vector<std::string> get_input_filenames() const { return input_filenames; };
+
+    std::string get_output_filename() const { return output_filename; };
+
     u64 get_text_load_addr() const { return text_load_addr; }
 
   private:
+    std::vector<std::string> input_filenames;
+    std::string output_filename;
     u64 text_load_addr;
 };
 
@@ -165,8 +173,8 @@ class LinkedSymTable {
 
 class Context {
   public:
-    Context(std::vector<std::shared_ptr<Myld::Parse::Elf>> objs)
-        : objs(objs), config(Config()), layout(), _start_addr(std::nullopt) {
+    Context(std::vector<std::string> input_filenames, std::string output_filename)
+        : objs({}), config(Config(input_filenames, output_filename)), layout(), _start_addr(std::nullopt) {
         linked_sym_table.init();
     }
 
@@ -180,7 +188,9 @@ class Context {
 
     std::map<std::string, std::vector<u8>> section_raws;
 
-    void build_and_output(std::string filename);
+    void build_and_output();
+
+    void parse_objects();
 };
 
 } // namespace Myld

@@ -27,11 +27,6 @@ class Reader {
 
     std::shared_ptr<Parse::Elf> get_elf() { return elf; }
 
-    void dump() {
-        fmt::print("content of {}\n", filename);
-        elf->dump();
-    }
-
   private:
     const std::string filename;
     std::shared_ptr<Parse::Elf> elf;

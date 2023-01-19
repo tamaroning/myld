@@ -55,14 +55,7 @@ int main(int argc, char *argv[]) {
 
     fmt::print("output file: {}\n", output_filename);
 
-    std::vector<std::shared_ptr<Myld::Parse::Elf>> objs({});
-    for (auto obj_filename : input_filenames) {
-        Myld::Elf::Reader reader(obj_filename);
-        reader.dump();
-        objs.push_back(reader.get_elf());
-    }
-
-    Myld::Linker linker = Myld::Linker(objs);
+    Myld::Linker linker = Myld::Linker(input_filenames, output_filename);
     linker.link();
 
     fmt::print("generated {}\n", output_filename);

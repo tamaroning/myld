@@ -3,10 +3,10 @@
 
 namespace Myld {
 
-void Context::build_and_output(std::string filename) {
+void Context::build_and_output() {
     Myld::Build::Builder builder{};
     builder.build(*this);
-    builder.output(filename);
+    builder.output(this->config.get_output_filename());
 };
 
 } // namespace Myld

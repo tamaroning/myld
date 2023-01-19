@@ -1,11 +1,12 @@
 #include "builder.h"
-#include "myld.h"
 #include "context.h"
+#include "myld.h"
 #include <cassert>
 #include <elf.h>
 #include <fstream>
 #include <map>
 #include <optional>
+
 
 namespace Myld {
 
@@ -19,9 +20,12 @@ static void embed_raw_i32(std::vector<u8> &raw, u64 offset, i32 value) {
 
 class Linker {
   public:
-    Linker(std::vector<std::shared_ptr<Parse::Elf>> objs) : ctx(Context(objs)) {}
+    Linker(std::vector<std::string> input_files, std::string output_file) : ctx(Context(input_files, output_file)) {}
 
     void link() {
+        // TODO: parse here
+        ctx.parse_objects();
+
         fmt::print("collecting symbols\n");
         // push all symbols to linked symbol table
         for (auto obj : ctx.objs) {
@@ -157,7 +161,7 @@ class Linker {
             }
         }
         // TODO: fix
-        ctx.build_and_output("myld-a.out");
+        ctx.build_and_output();
     }
 
   private:

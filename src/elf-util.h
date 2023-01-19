@@ -80,6 +80,22 @@ static void finalize_pheader_load(Elf64_Phdr *pheader, u64 offset, u64 size) {
     pheader->p_memsz = size;  // TODO: correct>
 }
 
+static std::shared_ptr<Elf64_Shdr> create_dummy_sheader(u32 name, u32 type, u64 flags, u64 addr, u32 link, u32 info,
+                                                        u64 addralign, u64 entsize) {
+    return std::make_shared<Elf64_Shdr>(Elf64_Shdr{
+        .sh_name = name,
+        .sh_type = type,
+        .sh_flags = flags,
+        .sh_addr = addr,
+        .sh_offset = DUMMY,
+        .sh_size = DUMMY,
+        .sh_link = link,
+        .sh_info = info,
+        .sh_addralign = addralign,
+        .sh_entsize = entsize,
+    });
+}
+
 static std::shared_ptr<Elf64_Shdr> create_sheader_null() {
     return std::make_shared<Elf64_Shdr>(Elf64_Shdr{
         .sh_name = 0,

@@ -7,6 +7,8 @@
 #include <map>
 #include <optional>
 #include <unordered_set>
+// use ""s
+using namespace std::literals::string_literals;
 
 namespace Myld {
 
@@ -293,7 +295,7 @@ class Linker {
             fmt::print(" name: \"{}\"\n", symbol_name);
         }
 
-        // Need to decide layout of `.text` here
+        // decide layout of `.text` here
         // Generate .text section by just concatinating all .text sections (alignment = 1byte)
         std::vector<u8> text_raw({});
         for (auto obj : objs) {
@@ -303,7 +305,7 @@ class Linker {
             text_raw.insert(text_raw.end(), obj_text_raw.begin(), obj_text_raw.end());
         }
 
-        // Need to decide layout of `.rodata` here
+        // decide layout of `.rodata` here
         // Generate .text section by just concatinating all .rodata sections (alignment = 1byte)
         // TODO: STT_SECTIONかつ名前が.rodataであるシンボルが含まれているセクションのrodataだけ集めればいいっぽい
         std::vector<u8> rodata_raw({});
@@ -315,6 +317,9 @@ class Linker {
                 rodata_raw.insert(rodata_raw.end(), obj_rodata_raw.begin(), obj_rodata_raw.end());
             }
         }
+
+        // decide layout of `.data` here
+        // TODO: .shstrtabを自動生成するようにしたい
 
         // resolve symbol address
         for (auto &[symbol_name, symbol] : linked_sym_table.get_entries()) {
@@ -409,7 +414,11 @@ class Linker {
             sections.push_back(rodata_section.value());
         }
 
+        // .data, .data*name*
+        // TODO:
+
         // .symtab
+        // create_section(".symtab", linked_sym_table.to_symtab_section_body(), 0);
         fmt::print("creating .symtab section\n");
         Section symtab_section =
             Section(Utils::create_dummy_sheader_symtab(1, 8, 3, linked_sym_table.get_local_symbol_num()));
@@ -417,6 +426,7 @@ class Linker {
         sections.push_back(symtab_section);
 
         // .strtab
+        // create_section(".strtab", linked_sym_table.to_strtab_section_body(), 0);
         fmt::print("creating .strtab section\n");
         Section strtab_section = Section(Utils::create_dummy_sheader_strtab(9, 1));
         strtab_section.set_raw(linked_sym_table.to_strtab_section_body());
@@ -425,14 +435,8 @@ class Linker {
         // .shstrtab
         fmt::print("creating .shstrtab section\n");
         Section shstrtab_section = Section(Utils::create_dummy_sheader_strtab(17, 0x1));
-        std::vector<u8> shstrtab_raw = {
-            '\0',                                                 // null
-            '.',  's', 'y', 'm', 't', 'a',  'b', '\0',            // .symtab
-            '.',  's', 't', 'r', 't', 'a',  'b', '\0',            //.strtab
-            '.',  's', 'h', 's', 't', 'r',  't', 'a',  'b', '\0', //.shstrtab
-            '.',  't', 'e', 'x', 't', '\0',                       // .text
-            '.',  'r', 'o', 'd', 'a', 't',  'a', '\0',            // .rodata
-        };
+        std::string shstrtab_content = "\0"s + ".symtab\0"s + ".strtab\0"s + ".shstrtab\0" + ".text\0"s + ".rodata\0"s;
+        std::vector<u8> shstrtab_raw(shstrtab_content.begin(), shstrtab_content.end());
         shstrtab_section.set_raw(shstrtab_raw);
         sections.push_back(shstrtab_section);
 
@@ -499,6 +503,53 @@ class Linker {
     std::vector<Section> sections;
 
     u64 padding_after_pheader;
+
+    std::string shstrtab_content;
+
+    void create_section(std::string section_name, std::vector<u8> raw, u64 addr) {
+        fmt::print("creating section {}\n", section_name);
+        u32 type = 0;
+        u64 flags = 0;
+        // addr provided by arg
+        u32 link = 0;
+        u32 info = 0;
+        u64 addralign = 0;
+        u64 entsize = 0;
+        if (section_name == "") {
+            // do nothing
+        } else if (section_name == ".symtab") {
+            type = SHT_SYMTAB;
+            addralign = 8;
+            entsize = sizeof(Elf64_Sym);
+            link = 3;                                       // TODO: strtabのindex
+            info = linked_sym_table.get_local_symbol_num(); // TODO: 最後のローカルシンボルのindex + 1とするのが正しい
+        } else if (section_name == ".strtab" || section_name == ".shstrtab") {
+            type = SHT_STRTAB;
+            addralign = 1;
+        } else if (section_name == ".text") {
+            type = SHT_PROGBITS;
+            addralign = 1;
+            flags = SHF_ALLOC | SHF_EXECINSTR; // AX
+        } else if (section_name == ".rodata") {
+            type = SHT_PROGBITS;
+            addralign = 1;
+            flags = SHF_ALLOC; // A
+        } else if (section_name.starts_with(".data")) {
+            type = SHT_PROGBITS;
+            addralign = 1;
+            flags = SHF_WRITE | SHF_ALLOC; // WA
+        } else {
+            fmt::print("unknown section name {}\n", section_name);
+            std::exit(1);
+        }
+        auto sheader =
+            Utils::create_dummy_sheader(shstrtab_content.size(), type, flags, addr, link, info, addralign, entsize);
+        shstrtab_content += section_name + "\0"s;
+
+        Section section = Section(sheader);
+        section.set_raw(raw);
+        sections.push_back(section);
+    }
 };
 
 } // namespace Myld

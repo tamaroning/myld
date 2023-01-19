@@ -1,32 +1,35 @@
 function test_exec() {
-    echo -n "test: $1 ... " > /dev/tty
+    echo -n "test: $1 ... " >/dev/tty
 
     # check if build with ld finishes successfully
     tests/$1/build.sh /usr/bin/ld
-    tests/$1/a.out > /dev/null
+    tests/$1/a.out >/dev/null
     actual=$?
     if [ $actual != 0 ]; then
-        echo -n "build with ld failed (exitcode: $actual)" > /dev/tty
+        echo -n "build with ld failed (exitcode: $actual)" >/dev/tty
     fi
 
     # build with myld
-    tests/$1/build.sh ../../build/myld 1> tests/$1/build.log 2> /dev/null
+    tests/$1/build.sh ../../build/myld 1>tests/$1/build.log 2>/dev/null
     if [ $? != 0 ]; then
-        echo "link failed (See tests/$1/build.log)" > /dev/tty
+        echo "link failed (See tests/$1/build.log)" >/dev/tty
         return
     fi
+    chmod u+x tests/$1/myld-a.out
+
     # execute binary
     tests/$1/myld-a.out build/myld
     actual=$?
     # check result
     if [ $actual == 0 ]; then
-        echo "ok" > /dev/tty
+        echo "ok" >/dev/tty
     else
-        echo "failed (exitcode: $actual)" > /dev/tty
+        echo "failed (exitcode: $actual)" >/dev/tty
     fi
 }
 
-cd `dirname $0`
+cd $(dirname $0)
+tests/clean.sh
 
 test_exec "simple1"
 test_exec "simple2"

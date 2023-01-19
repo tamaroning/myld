@@ -102,9 +102,9 @@ class RelaTextEntry {
     Raw raw;
 };
 
-class RelaText {
+class Rela {
   public:
-    RelaText(Elf64_Shdr *sheader, Raw raw) : sheader(sheader), entries({}) {
+    Rela(Elf64_Shdr *sheader, Raw raw) : sheader(sheader), entries({}) {
         assert(sheader->sh_entsize == sizeof(Elf64_Rela));
         reloc_num = sheader->sh_size / sheader->sh_entsize;
         fmt::print("found .rela.text section (relocation num = {})\n", reloc_num);
@@ -209,7 +209,7 @@ class Elf {
                 assert(section_name.starts_with(".rela"));
                 std::string referent_section_name(section_name.begin() + 5, section_name.end());
 
-                relas[referent_section_name] = std::make_shared<RelaText>(RelaText(sheader, section->get_raw()));
+                relas[referent_section_name] = std::make_shared<Rela>(Rela(sheader, section->get_raw()));
             }
         }
 
@@ -279,7 +279,7 @@ class Elf {
 
     std::optional<SymTable> get_sym_table() const { return sym_table; }
 
-    std::shared_ptr<RelaText> get_rela_by_name(std::string referent_section) const {
+    std::shared_ptr<Rela> get_rela_by_name(std::string referent_section) const {
         if (auto iter = relas.find(referent_section); iter != relas.end()) {
             return iter->second;
         }
@@ -342,7 +342,7 @@ class Elf {
     // this fielf has some value when the elf contains .symtab section
     std::optional<SymTable> sym_table;
     // relocation info
-    std::map<std::string, std::shared_ptr<RelaText>> relas;
+    std::map<std::string, std::shared_ptr<Rela>> relas;
 };
 
 } // namespace Parse

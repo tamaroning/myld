@@ -7,7 +7,6 @@
 #include <map>
 #include <optional>
 
-
 namespace Myld {
 
 static void embed_raw_i32(std::vector<u8> &raw, u64 offset, i32 value) {
@@ -59,13 +58,14 @@ class Linker {
         for (auto &[symbol_name, symbol] : ctx.linked_sym_table.get_entries()) {
             fmt::print(" name: \"{}\"\n", symbol_name);
         }
-
+        
         // decide layout of `.text` here
         // Generate .text section by just concatinating all .text sections (alignment = 1byte)
         {
             std::vector<u8> text_raw({});
             for (auto obj : ctx.objs) {
                 std::shared_ptr<Parse::Section> obj_text_section = obj->get_section_by_name(".text");
+                assert(obj_text_section != nullptr);
                 Raw obj_text_raw = obj_text_section->get_raw();
                 ctx.layout[obj_and_section(obj->get_filename(), ".text")] = text_raw.size();
                 text_raw.insert(text_raw.end(), obj_text_raw.begin(), obj_text_raw.end());
@@ -90,6 +90,19 @@ class Linker {
         }
 
         // decide layout of `.data` here
+        {
+            for (auto obj : ctx.objs) {
+                std::vector<std::shared_ptr<Parse::Section>> obj_dataname_sections = obj->get_section_starts_with(".data");
+
+                for (auto section: obj_dataname_sections) {
+                    std::string name = section->get_name();
+                    auto raw = section->get_raw().to_vec();
+
+                    ctx.layout[obj_and_section(obj->get_filename(), name)] = ctx.section_raws[name].size();
+                    ctx.section_raws[name].insert(ctx.section_raws[name].end(), raw.begin(), raw.end());
+                }
+            }
+        }
 
         // resolve symbol address
         for (auto &[symbol_name, symbol] : ctx.linked_sym_table.get_entries()) {
@@ -108,7 +121,7 @@ class Linker {
             } break;
             default: {
                 fmt::print("Not implemented: symbol type = 0x{:x}\n", symbol->get_type());
-                exit(1);
+                //exit(1);
             } break;
             }
         }
@@ -151,7 +164,7 @@ class Linker {
                     } break;
                     default: {
                         fmt::print("  Not implemented: rela type = 0x{:x}\n", rela_type);
-                        exit(1);
+                        //exit(1);
                     } break;
                     }
                 }

@@ -206,8 +206,9 @@ class Elf {
                 sym_table = std::make_optional<SymTable>(SymTable(sheader, section->get_raw()));
             } else if (sheader->sh_type == SHT_RELA) {
                 std::string section_name = section->get_name();
-                assert(section_name.starts_with(".rela"));
                 std::string referent_section_name(section_name.begin() + 5, section_name.end());
+                // .rela*name*があるのに*name*セクションがない
+                assert(get_section_by_name(referent_section_name) != nullptr);
 
                 relas[referent_section_name] = std::make_shared<Rela>(Rela(sheader, section->get_raw()));
             }
@@ -275,6 +276,15 @@ class Elf {
                 return std::shared_ptr<Section>(section);
         }
         return nullptr;
+    }
+
+    std::vector<std::shared_ptr<Section>> get_section_starts_with(std::string s) {
+        std::vector<std::shared_ptr<Section>> ret({});
+        for (auto section : sections) {
+            if (section->get_name().starts_with(s))
+                ret.push_back(std::shared_ptr<Section>(section));
+        }
+        return ret;
     }
 
     std::optional<SymTable> get_sym_table() const { return sym_table; }

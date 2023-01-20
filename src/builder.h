@@ -111,30 +111,31 @@ class Builder {
         pheader =
             Utils::create_dummy_pheader_load(ctx.config.get_text_load_addr(), ctx.config.get_text_load_addr(), 0x1000);
 
+        current_load_addr = ctx.config.get_text_load_addr();
+
         // null
-        create_section(ctx, "", {}, 0);
+        create_section(ctx, "", {});
 
         // .text
-        create_section(ctx, ".text", ctx.section_raws[".text"], ctx.config.get_text_load_addr());
+        create_section(ctx, ".text", ctx.section_raws[".text"]);
 
         // .rodata
         // std::optional<Section> rodata_section = std::nullopt;
         if (ctx.section_raws[".rodata"].size() > 0) {
-            create_section(ctx, ".rodata", ctx.section_raws[".rodata"],
-                           ctx.config.get_text_load_addr() + ctx.section_raws[".text"].size());
+            create_section(ctx, ".rodata", ctx.section_raws[".rodata"]);
         }
 
         // .data, .data*name*
         // TODO:
 
         // .symtab
-        create_section(ctx, ".symtab", ctx.linked_sym_table.to_symtab_section_body(), 0);
+        create_section(ctx, ".symtab", ctx.linked_sym_table.to_symtab_section_body());
 
         // .strtab
-        create_section(ctx, ".strtab", ctx.linked_sym_table.to_strtab_section_body(), 0);
+        create_section(ctx, ".strtab", ctx.linked_sym_table.to_strtab_section_body());
 
         // .shstrtab
-        create_section(ctx, ".shstrtab", std::vector<u8>(shstrtab_content.begin(), shstrtab_content.end()), 0);
+        create_section(ctx, ".shstrtab", std::vector<u8>(shstrtab_content.begin(), shstrtab_content.end()));
 
         // calculate padding before each section
         u64 first_section_start_offset = 0x1000;
@@ -194,6 +195,7 @@ class Builder {
     std::vector<std::shared_ptr<Section>> sections;
 
     std::string shstrtab_content;
+    u64 current_load_addr;
 
     std::shared_ptr<Section> get_section_by_name(std::string name) {
         for (auto section : sections) {
@@ -204,11 +206,11 @@ class Builder {
         return nullptr;
     }
 
-    void create_section(const Context ctx, std::string section_name, std::vector<u8> raw, u64 addr) {
+    void create_section(const Context ctx, std::string section_name, std::vector<u8> raw) {
         fmt::print("creating section {}\n", section_name);
         u32 type = 0;
         u64 flags = 0;
-        // addr provided by arg
+        u64 addr = 0;
         u32 link = 0;
         u32 info = 0;
         u64 addralign = 0;
@@ -220,7 +222,7 @@ class Builder {
             addralign = 8;
             entsize = sizeof(Elf64_Sym);
             // .strtabのsection header index
-            link = 3;
+            link = sections.size() + 1;
             info =
                 ctx.linked_sym_table.get_local_symbol_num(); // TODO: 最後のローカルシンボルのindex + 1とするのが正しい
         } else if (section_name == ".strtab") {
@@ -233,14 +235,20 @@ class Builder {
             type = SHT_PROGBITS;
             addralign = 1;
             flags = SHF_ALLOC | SHF_EXECINSTR; // AX
+            addr = current_load_addr;
+            current_load_addr += raw.size();
         } else if (section_name == ".rodata") {
             type = SHT_PROGBITS;
             addralign = 1;
             flags = SHF_ALLOC; // A
+            addr = current_load_addr;
+            current_load_addr += raw.size();
         } else if (section_name.starts_with(".data")) {
             type = SHT_PROGBITS;
             addralign = 1;
             flags = SHF_WRITE | SHF_ALLOC; // WA
+            addr = current_load_addr;
+            current_load_addr += raw.size();
         } else {
             fmt::print("unknown section name {}\n", section_name);
             std::exit(1);

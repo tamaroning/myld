@@ -29,9 +29,22 @@ class Linker {
         // push all symbols to linked symbol table
         for (auto obj : ctx.objs) {
             for (auto sym_entry : obj->get_sym_table().value().get_entries()) {
+                if (sym_entry->get_sym()->st_shndx == SHT_NULL) {
+                    // null symbol or undefined symbol
+                    continue;
+                }
+
                 switch (sym_entry->get_type()) {
                 case STT_NOTYPE: {
-                    // null or symbol defined in another file
+                    // アセンブリで書かれた関数はNO_TYPEになった
+                    auto sym = std::make_shared<LinkedSymTableEntry>(
+                        LinkedSymTableEntry::from(sym_entry, obj->get_filename()));
+                    // insert symbol
+                    if (!ctx.linked_sym_table.insert(sym)) {
+                        // duplicated symbol
+                        fmt::print("duplicated symbol\n");
+                        std::exit(1);
+                    }
                 } break;
                 case STT_SECTION: {
                     if (sym_entry->get_name() == ".rodata") {
@@ -44,7 +57,7 @@ class Linker {
                     // insert symbol
                     if (!ctx.linked_sym_table.insert(sym)) {
                         // duplicated symbol
-                        fmt::print("found duplicated symbol: \"{}\"\n", sym->get_name());
+                        fmt::print("duplicated symbol\n");
                         std::exit(1);
                     }
                 } break;
@@ -58,7 +71,7 @@ class Linker {
         for (auto &[symbol_name, symbol] : ctx.linked_sym_table.get_entries()) {
             fmt::print(" name: \"{}\"\n", symbol_name);
         }
-        
+
         // decide layout of `.text` here
         // Generate .text section by just concatinating all .text sections (alignment = 1byte)
         {
@@ -92,9 +105,10 @@ class Linker {
         // decide layout of `.data` here
         {
             for (auto obj : ctx.objs) {
-                std::vector<std::shared_ptr<Parse::Section>> obj_dataname_sections = obj->get_section_starts_with(".data");
+                std::vector<std::shared_ptr<Parse::Section>> obj_dataname_sections =
+                    obj->get_section_starts_with(".data");
 
-                for (auto section: obj_dataname_sections) {
+                for (auto section : obj_dataname_sections) {
                     std::string name = section->get_name();
                     auto raw = section->get_raw().to_vec();
 
@@ -121,7 +135,7 @@ class Linker {
             } break;
             default: {
                 fmt::print("Not implemented: symbol type = 0x{:x}\n", symbol->get_type());
-                //exit(1);
+                // exit(1);
             } break;
             }
         }
@@ -142,10 +156,10 @@ class Linker {
                     u64 rela_offset = rela_entry->get_rela()->r_offset;
 
                     fmt::print("resolving rela: \"{}\"\n", rela_name);
-                    fmt::print("  rela type = 0x{:x}\n", rela_type);
+                    fmt::print("  rela type = 0x{:x}", rela_type);
                     switch (rela_type) {
                     case R_X86_64_PLT32: {
-                        fmt::print("found relocation R_X86_64_PLT32\n");
+                        fmt::print("(R_X86_64_PLT32)\n");
                         // ELF spec (L + A - P)
                         // ref:
                         // https://stackoverflow.com/questions/64424692/how-does-the-address-of-r-x86-64-plt32-computed
@@ -164,7 +178,7 @@ class Linker {
                     } break;
                     default: {
                         fmt::print("  Not implemented: rela type = 0x{:x}\n", rela_type);
-                        //exit(1);
+                        // exit(1);
                     } break;
                     }
                 }
